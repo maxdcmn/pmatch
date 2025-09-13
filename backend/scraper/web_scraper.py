@@ -3,7 +3,7 @@ KTH directory scraper (compact).
 
 Fetch ~20 profiles (professors, postdocs, researchers) from the directory page,
 visit each profile, and write CSV with:
-name, email, title, research_area, profile_url, top_publication, top_abstract.
+name, email, title, research_area, profile_url, abstracts (JSON list of up to 3).
 """
 
 import asyncio
@@ -97,26 +97,17 @@ def parse_profile(html: str) -> Dict[str, Optional[str]]:
                 research_area = _text(node)
                 break
 
-    top_publication = None
-    top_abstract = None
+    # Deprecated: we no longer extract top_publication/top_abstract here
     pubs_section = None
     for h in soup.find_all(["h2", "h3"]):
         txt = _text(h).lower()
         if "publication" in txt or "publikation" in txt:
             pubs_section = h.find_next()
             break
-    if pubs_section:
-        first_item = pubs_section.find(["li", "p", "article"]) or pubs_section
-        if first_item:
-            top_publication = _text(first_item)
-            details = first_item.find("details") or first_item.find_next("details")
-            if details:
-                top_abstract = _text(details)
+    # Keep research_area only; publication details are handled by publications module
 
     return {
         "research_area": research_area,
-        "top_publication": top_publication,
-        "top_abstract": top_abstract,
     }
 
 
@@ -143,14 +134,15 @@ async def scrape() -> List[Dict[str, Any]]:
                 html = await fetch_html(page, url)
                 extra = parse_profile(html)
                 abstracts = await get_publication_abstracts(page, url, html, max_items=3)
-                if abstracts:
-                    extra["top_abstract"] = json.dumps(abstracts, ensure_ascii=False)
-                    logging.info("Abstracts found: %d for %s", len(abstracts), person.get("name"))
-                else:
-                    logging.info("No abstracts found for %s", person.get("name"))
+                if abstracts is None or not abstracts:
+                    logging.info("No publications source/abstracts for %s — skipping", person.get("name"))
+                    continue  # dismiss this researcher
+                # Store list of abstracts (JSON string) under 'abstracts'
+                extra["abstracts"] = json.dumps(abstracts, ensure_ascii=False)
+                logging.info("Abstracts found: %d for %s", len(abstracts), person.get("name"))
             except Exception as e:
                 logging.exception("Error scraping profile %s: %s", url, e)
-                extra = {"research_area": None, "top_publication": None, "top_abstract": None}
+                extra = {"research_area": None}
             row = {**person, **extra}
             results.append(row)
             seen.add(pid)
@@ -169,13 +161,20 @@ def write_csv(rows: List[Dict[str, Any]], path: str) -> None:
         "title",
         "research_area",
         "profile_url",
-        "top_abstract",
+        "abstracts",
     ]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields, quoting=csv.QUOTE_ALL)
         writer.writeheader()
         for r in rows:
-            clean = {k: " ".join(str(r.get(k) or "").split()) for k in fields}
+            clean: Dict[str, str] = {}
+            for k in fields:
+                v = r.get(k)
+                if k == "abstracts":
+                    # already JSON; avoid collapsing whitespace inside abstracts
+                    clean[k] = str(v or "")
+                else:
+                    clean[k] = " ".join(str(v or "").split())
             writer.writerow(clean)
 
 
