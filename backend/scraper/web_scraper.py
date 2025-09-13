@@ -11,10 +11,13 @@ import csv
 from pathlib import Path
 import hashlib
 from typing import Any, Dict, List, Optional
+import logging
 
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 from tenacity import retry, stop_after_attempt, wait_exponential
+import json
+from .publications import get_publication_abstracts
 
 
 DIRECTORY_URL = "https://www.kth.se/directory/j/jh"
@@ -45,6 +48,7 @@ def hash_id(s: str) -> str:
 
 @retry(wait=wait_exponential(multiplier=0.5, max=8), stop=stop_after_attempt(3))
 async def fetch_html(page, url: str) -> str:
+    logging.debug("goto %s", url)
     resp = await page.goto(url, wait_until="domcontentloaded", timeout=45000)
     if not resp or not (200 <= resp.status < 400):
         raise RuntimeError(f"Bad status {resp.status if resp else 'N/A'} for {url}")
@@ -57,6 +61,7 @@ def parse_directory(html: str) -> List[Dict[str, str]]:
     table = soup.find("table", id="staff-table") or soup.find("table")
     results: List[Dict[str, str]] = []
     if not table:
+        logging.warning("No table found in directory HTML")
         return results
     for tr in table.find_all("tr"):
         tds = tr.find_all("td")
@@ -75,6 +80,7 @@ def parse_directory(html: str) -> List[Dict[str, str]]:
         }
         if shortlist_row(row):
             results.append(row)
+    logging.info("Parsed %d candidate profiles from directory", len(results))
     return results
 
 
@@ -115,6 +121,7 @@ def parse_profile(html: str) -> Dict[str, Optional[str]]:
 
 
 async def scrape() -> List[Dict[str, Any]]:
+    logging.info("Start scraping directory: %s (max=%d)", DIRECTORY_URL, MAX_PROFILES)
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
         context = await browser.new_context()
@@ -135,13 +142,21 @@ async def scrape() -> List[Dict[str, Any]]:
             try:
                 html = await fetch_html(page, url)
                 extra = parse_profile(html)
-            except Exception:
+                abstracts = await get_publication_abstracts(page, url, html, max_items=3)
+                if abstracts:
+                    extra["top_abstract"] = json.dumps(abstracts, ensure_ascii=False)
+                    logging.info("Abstracts found: %d for %s", len(abstracts), person.get("name"))
+                else:
+                    logging.info("No abstracts found for %s", person.get("name"))
+            except Exception as e:
+                logging.exception("Error scraping profile %s: %s", url, e)
                 extra = {"research_area": None, "top_publication": None, "top_abstract": None}
             row = {**person, **extra}
             results.append(row)
             seen.add(pid)
         await context.close()
         await browser.close()
+        logging.info("Finished scraping %d profiles", len(results))
         return results
 
 
@@ -154,7 +169,6 @@ def write_csv(rows: List[Dict[str, Any]], path: str) -> None:
         "title",
         "research_area",
         "profile_url",
-        "top_publication",
         "top_abstract",
     ]
     with open(path, "w", newline="", encoding="utf-8") as f:
@@ -166,8 +180,10 @@ def write_csv(rows: List[Dict[str, Any]], path: str) -> None:
 
 
 async def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     rows = await scrape()
     write_csv(rows, OUTPUT_CSV)
+    logging.info("Wrote CSV: %s (%d rows)", OUTPUT_CSV, len(rows))
 
 
 if __name__ == "__main__":
