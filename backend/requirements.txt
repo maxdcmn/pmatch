@@ -1,0 +1,5 @@
+playwright>=1.45.0
+pandas>=2.2.0
+beautifulsoup4>=4.12.0
+tenacity>=8.2.0
+
