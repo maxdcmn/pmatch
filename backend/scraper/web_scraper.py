@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 from tenacity import retry, stop_after_attempt, wait_exponential
 import json
-from .publications import get_publication_abstracts
+from publications import get_publication_abstracts
 
 
 DIRECTORY_URL = "https://www.kth.se/directory/j/jh"
