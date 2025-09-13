@@ -54,19 +54,24 @@ def upsert_profile(
             )
 
 
+def _vector_literal(vec: List[float]) -> str:
+    # pgvector accepts "[v1, v2, ...]" text literal
+    return "[" + ", ".join(str(float(x)) for x in vec) + "]"
+
+
 def search_profiles(query_embedding: List[float], top_k: int = 5) -> List[Dict]:
     with get_conn() as conn:
         with conn.cursor() as cur:
+            vec_text = _vector_literal(query_embedding)
             cur.execute(
                 """
-                SELECT id, name, email, title, research_area, profile_url, abstracts,
-                       1 - (embedding <=> %s) AS score
+                SELECT *, 1 - (embedding <=> %s::vector) AS score
                 FROM profiles
                 WHERE embedding IS NOT NULL
-                ORDER BY embedding <-> %s
+                ORDER BY embedding <-> %s::vector
                 LIMIT %s
                 """,
-                (query_embedding, query_embedding, top_k),
+                (vec_text, vec_text, top_k),
             )
             return cur.fetchall()
 

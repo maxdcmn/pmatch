@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   id TEXT PRIMARY KEY,
   name TEXT,
   email TEXT,
+  institution TEXT,
+  country TEXT,
   title TEXT,
   research_area TEXT,
   profile_url TEXT UNIQUE,
