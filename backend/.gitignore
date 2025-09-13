@@ -1,1 +1,6 @@
 .env
+.venv/
+
+scraper/kth_researchers.csv
+__pycache__/
+
