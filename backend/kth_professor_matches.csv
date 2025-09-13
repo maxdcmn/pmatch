@@ -1,0 +1,6 @@
+name,email,profile_url,score,top_publication,reason
+Aristides Gionis,argioni@kth.se,https://www.kth.se/profile/argioni,0.3032,Creating Coherence in Federated Non-Negative Matrix Factorization,Overlap on topics: matrix.
+Petter Ögren,petter@kth.se,https://www.kth.se/profile/petter,0.2455,Context Matters: Understanding Socially Appropriate Affective Responses Via Sentence Embeddings,Top match based on publication abstract similarity to your CV and paper abstracts.
+Danica Kragic Jensfelt,dani@kth.se,https://www.kth.se/profile/dani,0.2395,Trends and challenges in robot manipulation,Top match based on publication abstract similarity to your CV and paper abstracts.
+Hedvig Kjellström,hedvig@kth.se,https://www.kth.se/profile/hedvig,0.2371,Dessie: Disentanglement for Articulated 3D Horse Shape and Pose Estimation from Images,Overlap on topics: from.
+Henrik Boström,bostromh@kth.se,https://www.kth.se/profile/henbos,0.2340,Obtaining Example-Based Explanations from Deep Neural Networks,Overlap on topics: from.
