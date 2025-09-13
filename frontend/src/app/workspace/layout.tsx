@@ -1,19 +1,26 @@
 'use client';
 
+import { useState } from 'react';
 import { DataDrop } from './components/data-drop';
 import { Chat } from './components/chat';
 import { Contact } from './components/contact';
 import { WorkspaceSidebar } from './components/workspace-sidebar';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 
+type ContactData = {
+  text: string;
+  email: string;
+  subject: string;
+};
 
 export default function WorkspaceLayout() {
+  const [contactData, setContactData] = useState<ContactData | null>(null);
 
   const currentUser = {
-    id: "user-1",
-    email: "max@pmatch.com",
-    username: "Max",
-  }
+    id: 'user-1',
+    email: 'max@pmatch.com',
+    username: 'Max',
+  };
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full lg:h-screen">
@@ -32,12 +39,12 @@ export default function WorkspaceLayout() {
                 </div>
 
                 <div className="border-border h-[500px] overflow-hidden rounded-md border lg:h-4/7">
-                  <Chat />
+                  <Chat onContactDataUpdate={setContactData} />
                 </div>
               </div>
 
               <div className="border-border h-[700px] w-full overflow-hidden rounded-md border lg:h-auto lg:w-3/5">
-                <Contact />
+                <Contact incomingContactData={contactData} onContactDataUpdate={setContactData} />
               </div>
             </div>
           </div>
