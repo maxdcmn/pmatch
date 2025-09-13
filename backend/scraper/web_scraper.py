@@ -134,10 +134,12 @@ async def scrape() -> List[Dict[str, Any]]:
                 html = await fetch_html(page, url)
                 extra = parse_profile(html)
                 abstracts = await get_publication_abstracts(page, url, html, max_items=3)
-                # Store list of abstracts (JSON string) under 'abstracts' even if empty
-                abs_list = abstracts or []
-                extra["abstracts"] = json.dumps(abs_list, ensure_ascii=False)
-                logging.info("Abstracts found: %d for %s", len(abs_list), person.get("name"))
+                if not abstracts:
+                    logging.info("No publications source/abstracts for %s — skipping", person.get("name"))
+                    continue
+                # Store abstracts joined by double newlines; avoid JSON to prevent extra quotes
+                extra["abstracts"] = "\n\n".join(abstracts)
+                logging.info("Abstracts found: %d for %s", len(abstracts), person.get("name"))
             except Exception as e:
                 logging.exception("Error scraping profile %s: %s", url, e)
                 extra = {"research_area": None}
