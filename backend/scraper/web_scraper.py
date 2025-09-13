@@ -20,9 +20,9 @@ import json
 from publications import get_publication_abstracts
 
 
-DIRECTORY_URL = "https://www.kth.se/directory/j/jh"
+DIRECTORY_URL = "https://www.kth.se/directory/j/jh?l=en"
 OUTPUT_CSV = str(Path(__file__).with_name("kth_researchers.csv"))
-MAX_PROFILES = 100
+MAX_PROFILES = 25
 TITLES_INCLUDE = (
     "professor",
     "universitetslektor",
@@ -134,12 +134,10 @@ async def scrape() -> List[Dict[str, Any]]:
                 html = await fetch_html(page, url)
                 extra = parse_profile(html)
                 abstracts = await get_publication_abstracts(page, url, html, max_items=3)
-                if abstracts is None or not abstracts:
-                    logging.info("No publications source/abstracts for %s — skipping", person.get("name"))
-                    continue  # dismiss this researcher
-                # Store list of abstracts (JSON string) under 'abstracts'
-                extra["abstracts"] = json.dumps(abstracts, ensure_ascii=False)
-                logging.info("Abstracts found: %d for %s", len(abstracts), person.get("name"))
+                # Store list of abstracts (JSON string) under 'abstracts' even if empty
+                abs_list = abstracts or []
+                extra["abstracts"] = json.dumps(abs_list, ensure_ascii=False)
+                logging.info("Abstracts found: %d for %s", len(abs_list), person.get("name"))
             except Exception as e:
                 logging.exception("Error scraping profile %s: %s", url, e)
                 extra = {"research_area": None}
