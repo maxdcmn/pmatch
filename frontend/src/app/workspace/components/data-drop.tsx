@@ -2,7 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Upload, File as FileIcon, X } from 'lucide-react';
+import { Upload, File as FileIcon, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { api, UploadResponse } from '@/lib/api';
 
 type DataDropProps = {
   className?: string;
@@ -13,6 +14,9 @@ type DroppedFile = {
   size: number;
   type: string;
   file: File;
+  status: 'pending' | 'uploading' | 'success' | 'error';
+  uploadResponse?: UploadResponse;
+  error?: string;
 };
 
 export function DataDrop({ className }: DataDropProps) {
@@ -29,13 +33,50 @@ export function DataDrop({ className }: DataDropProps) {
   }
 
   function addFiles(list: FileList | File[]) {
-    const arr = Array.from(list).map((file) => ({
+    const pdfFiles = Array.from(list).filter((file) => file.type === 'application/pdf');
+    const arr = pdfFiles.map((file) => ({
       name: file.name,
       size: file.size,
       type: file.type,
       file,
+      status: 'pending' as const,
     }));
     setFiles((prev) => [...prev, ...arr]);
+
+    arr.forEach((fileObj, index) => {
+      uploadFile(fileObj, files.length + index);
+    });
+  }
+
+  async function uploadFile(fileObj: DroppedFile, index: number) {
+    setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, status: 'uploading' } : f)));
+
+    try {
+      const response = await api.uploadPDF(fileObj.file);
+      setFiles((prev) =>
+        prev.map((f, i) =>
+          i === index
+            ? {
+                ...f,
+                status: 'success',
+                uploadResponse: response,
+              }
+            : f,
+        ),
+      );
+    } catch (error) {
+      setFiles((prev) =>
+        prev.map((f, i) =>
+          i === index
+            ? {
+                ...f,
+                status: 'error',
+                error: error instanceof Error ? error.message : 'Upload failed',
+              }
+            : f,
+        ),
+      );
+    }
   }
 
   function onBrowseClick() {
@@ -44,7 +85,7 @@ export function DataDrop({ className }: DataDropProps) {
 
   function onInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files.length > 0) {
-      addFiles(e.target.files); 
+      addFiles(e.target.files);
       e.currentTarget.value = '';
     }
   }
@@ -115,10 +156,29 @@ export function DataDrop({ className }: DataDropProps) {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex min-w-0 items-center gap-2">
-                        <FileIcon className="text-muted-foreground shrink-0" size={16} />
+                        {f.status === 'success' ? (
+                          <CheckCircle className="shrink-0 text-green-500" size={16} />
+                        ) : f.status === 'error' ? (
+                          <AlertCircle className="shrink-0 text-red-500" size={16} />
+                        ) : f.status === 'uploading' ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                        ) : (
+                          <FileIcon className="text-muted-foreground shrink-0" size={16} />
+                        )}
                         <div className="min-w-0">
                           <p className="text-foreground truncate text-sm">{f.name}</p>
-                          <p className="text-muted-foreground text-xs">{formatBytes(f.size)}</p>
+                          <p className="text-muted-foreground text-xs">
+                            {formatBytes(f.size)}
+                            {f.status === 'success' && f.uploadResponse && (
+                              <span className="ml-2 text-green-600">• Uploaded</span>
+                            )}
+                            {f.status === 'error' && (
+                              <span className="ml-2 text-red-600">• {f.error}</span>
+                            )}
+                            {f.status === 'uploading' && (
+                              <span className="ml-2 text-blue-600">• Uploading...</span>
+                            )}
+                          </p>
                         </div>
                       </div>
                       <button
@@ -145,7 +205,14 @@ export function DataDrop({ className }: DataDropProps) {
             </div>
           )}
 
-          <input ref={inputRef} type="file" multiple onChange={onInputChange} className="hidden" />
+          <input
+            ref={inputRef}
+            type="file"
+            multiple
+            accept=".pdf,application/pdf"
+            onChange={onInputChange}
+            className="hidden"
+          />
         </div>
       </div>
     </div>

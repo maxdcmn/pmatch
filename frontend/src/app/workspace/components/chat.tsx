@@ -3,12 +3,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Send } from 'lucide-react';
+import { api, LLMResponse } from '@/lib/api';
 
 type Message = {
   id: string;
   content: string;
   role: 'user' | 'ai';
   timestamp: Date;
+  error?: boolean;
 };
 
 type ChatProps = {
@@ -41,19 +43,36 @@ export function Chat({ className }: ChatProps) {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const currentMessage = message.trim();
     setMessage('');
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const response: LLMResponse = await api.chatWithLLM(currentMessage);
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: "I'm a simulated response. Replace this with your actual LLM integration.",
+        content: response.response,
         role: 'ai',
         timestamp: new Date(),
       };
+
       setMessages((prev) => [...prev, aiMessage]);
+    } catch (error) {
+      console.error('Chat API error:', error);
+
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: `Error: ${error instanceof Error ? error.message : 'Failed to get response'}`,
+        role: 'ai',
+        timestamp: new Date(),
+        error: true,
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -80,7 +99,9 @@ export function Chat({ className }: ChatProps) {
                           'max-w-[80%] rounded-lg px-3 py-2 text-sm break-words',
                           msg.role === 'user'
                             ? 'bg-primary text-primary-foreground ml-auto'
-                            : 'bg-muted text-foreground',
+                            : msg.error
+                              ? 'bg-destructive/10 text-destructive border-destructive/20 border'
+                              : 'bg-muted text-foreground',
                         )}
                       >
                         {msg.content}
