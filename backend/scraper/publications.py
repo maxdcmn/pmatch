@@ -1,12 +1,17 @@
 """
 Publications utilities.
 
-Depth-2 extractor: follow the "Publikationslista/Publications list" link from a
-profile, then visit a few publication pages and collect abstracts.
-Return a list[str] of abstracts (empty if none found).
+Select a publications source for a KTH profile using an LLM + heuristics in the
+following priority:
+1) A publications link on the profile page
+2) Google Scholar profile link
+3) ORCID profile link
+
+If none exist, return None (caller should skip this profile). Otherwise, visit
+the selected source page and gather up to three recent abstracts.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from urllib.parse import urljoin
 import re
 import logging
@@ -28,26 +33,103 @@ def _t(s) -> str:
     return " ".join((s or "").split())
 
 
-def _find_publications_link(profile_html: str, profile_url: str) -> Optional[str]:
+def _find_anchors(profile_html: str, base_url: str) -> List[Tuple[str, str]]:
+    """Return list of (text, absolute_url) anchors from the profile page."""
     soup = BeautifulSoup(profile_html, "html.parser")
+    out: List[Tuple[str, str]] = []
     for a in soup.find_all("a"):
-        text = _t(a.get_text(" ", strip=True)).lower()
-        if any(k in text for k in ("publikationslista", "publicationslist", "publications list")):
-            href = a.get("href")
-            if href:
-                # KTH uses /profile/{slug}/publications paths sometimes
-                if href.startswith("/profile/") and "/publications" in href:
-                    return urljoin("https://www.kth.se", href)
-                return urljoin(profile_url, href)
+        text = _t(a.get_text(" ", strip=True))
+        href = a.get("href")
+        if not href:
+            continue
+        out.append((text, urljoin(base_url, href)))
+    return out
+
+
+def _choose_source_with_llm(anchors: List[Tuple[str, str]], page_text: str) -> List[str]:
+    """Use LLM to select likely publications-related links from anchors.
+
+    Returns list of URLs (may be empty if no LLM or nothing selected).
+    """
+    if not anchors:
+        return []
+    candidates = [f"{t} | {u}" for t, u in anchors]
+    return choose_publication_links(candidates, page_text)
+
+
+def _pick_best_source(anchors: List[Tuple[str, str]], llm_urls: List[str]) -> Optional[str]:
+    """Pick best source URL in required priority order."""
+    # Heuristic pass over anchors first
+    pubs_keywords = (
+        "publikationslista",
+        "publikationer",
+        "publication list",
+        "publications list",
+        "publication",
+        "publications",
+        "research outputs",
+        "/publications",
+    )
+    scholar_kw = ("scholar.google.com", "google scholar")
+    orcid_kw = ("orcid.org/",)
+
+    def find_in(listing: List[Tuple[str, str]], kws) -> Optional[str]:
+        for text, url in listing:
+            low = (text or "").lower() + " " + (url or "").lower()
+            if any(k in low for k in kws):
+                return url
+        return None
+
+    # 1) Publications link on profile
+    url = find_in(anchors, pubs_keywords)
+    if url:
+        return url
+    # 2) Google Scholar
+    url = find_in(anchors, scholar_kw)
+    if url:
+        return url
+    # 3) ORCID
+    url = find_in(anchors, orcid_kw)
+    if url:
+        return url
+
+    # Fall back to LLM-selected URLs in the same priority order
+    def find_in_llm(urls: List[str], kws) -> Optional[str]:
+        for url in urls:
+            low = url.lower()
+            if any(k in low for k in kws):
+                return url
+        return None
+
+    url = find_in_llm(llm_urls, pubs_keywords)
+    if url:
+        return url
+    url = find_in_llm(llm_urls, scholar_kw)
+    if url:
+        return url
+    url = find_in_llm(llm_urls, orcid_kw)
+    if url:
+        return url
     return None
 
 
-async def get_publication_abstracts(page, profile_url: str, profile_html: str, max_items: int = 3) -> List[str]:
-    link = _find_publications_link(profile_html, profile_url)
+async def get_publication_abstracts(page, profile_url: str, profile_html: str, max_items: int = 3) -> Optional[List[str]]:
+    """Return up to `max_items` abstracts or None if no publications source found."""
+    soup_profile = BeautifulSoup(profile_html, "html.parser")
+    anchors = _find_anchors(profile_html, profile_url)
+    llm_urls = _choose_source_with_llm(anchors, soup_profile.get_text(" ", strip=True))
+    link = _pick_best_source(anchors, llm_urls)
     if not link:
-        logging.info("No publications link found for profile: %s", profile_url)
-        return []
+        preview = "; ".join([f"{t[:40]} -> {u[:60]}" for t, u in anchors[:6]])
+        logging.info(
+            "No publications/Scholar/ORCID link found for profile: %s (anchors=%d) Preview: %s",
+            profile_url,
+            len(anchors),
+            preview,
+        )
+        return None
 
+    logging.info("Visiting publications source: %s", link)
     resp = await page.goto(link, wait_until="domcontentloaded", timeout=45000)
     if not resp or not (200 <= resp.status < 400):
         logging.warning("Failed to open publications list: %s", link)
@@ -66,7 +148,7 @@ async def get_publication_abstracts(page, profile_url: str, profile_html: str, m
                 break
     if inline:
         logging.info("Found %d inline abstracts on list page: %s", len(inline), link)
-        return inline or extract_abstracts_with_llm(soup.get_text(" ", strip=True))
+        return inline[:max_items] or extract_abstracts_with_llm(soup.get_text(" ", strip=True))[:max_items]
 
     # Collect candidate links to individual publications or lists. Build LLM-assisted shortlist.
     anchors = [
@@ -77,7 +159,7 @@ async def get_publication_abstracts(page, profile_url: str, profile_html: str, m
     ]
     seen = set()
     pub_links: List[str] = []
-    allow = re.compile(r"(doi\.org/|arxiv\.org/abs/|ieeexplore\.ieee\.org/document/|dl\.acm\.org/doi/|link\.springer\.com/|springer\.com/|sciencedirect\.com/science/article/|onlinelibrary\.wiley\.com/doi/|tandfonline\.com/doi/|nature\.com/|scholar\.google\.com/)")
+    allow = re.compile(r"(doi\.org/|arxiv\.org/abs/|ieeexplore\.ieee\.org/document/|dl\.acm\.org/doi/|link\.springer\.com/|springer\.com/|sciencedirect\.com/science/article/|onlinelibrary\.wiley\.com/doi/|tandfonline\.com/doi/|nature\.com/|scholar\.google\.com/|diva-portal\.org/)")
     candidates_for_llm: List[str] = []
     for a in anchors:
         href = a.get("href")
@@ -175,10 +257,10 @@ async def get_publication_abstracts(page, profile_url: str, profile_html: str, m
                 # LLM fallback
                 llm_abs = extract_abstracts_with_llm(psoup.get_text(" ", strip=True))
                 abstracts.extend(llm_abs[:1])
+            if len(abstracts) >= max_items:
+                break
         except Exception as e:
             logging.exception("Error parsing publication %s: %s", url, e)
             continue
 
-    return abstracts
-
-
+    return abstracts[:max_items]
