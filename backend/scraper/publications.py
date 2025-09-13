@@ -43,6 +43,139 @@ def _heading_next_paragraph(soup: BeautifulSoup) -> Optional[str]:
     return None
 
 
+def _collect_abstracts(soup: BeautifulSoup, max_items: int = 3) -> List[str]:
+    """Collect up to `max_items` plausible abstracts from a document.
+
+    Priority:
+    1) dt/dd labeled Abstract/Sammanfattning
+    2) Containers with id/class containing 'abstract' or 'sammanfatt'
+    3) Heading containing Abstract → next <p>
+    """
+    out: List[str] = []
+    seen: set[str] = set()
+
+    # 1) Definition lists
+    for dt in soup.find_all('dt'):
+        label = _t(dt.get_text(" ", strip=True)).lower()
+        if "abstract" in label or "sammanfatt" in label:
+            dd = dt.find_next_sibling('dd') or dt.find_next('dd')
+            if dd:
+                txt = _block_text(dd)
+                if _is_plausible_abstract(txt):
+                    norm = txt.strip()
+                    if norm not in seen:
+                        out.append(norm); seen.add(norm)
+                        if len(out) >= max_items:
+                            return out
+
+    # 2) Common abstract containers
+    for el in soup.select('[id*="abstract"], [class*="abstract"], [id*="sammanfatt"], [class*="sammanfatt"]'):
+        txt = _block_text(el)
+        if _is_plausible_abstract(txt):
+            norm = txt.strip()
+            if norm not in seen:
+                out.append(norm); seen.add(norm)
+                if len(out) >= max_items:
+                    return out
+
+    # 3) Heading followed by next paragraph
+    for h in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
+        t = _t(h.get_text(" ", strip=True)).lower()
+        if "abstract" in t or "sammanfattning" in t or "sammanfatt" in t or "summary" in t:
+            p = h.find_next("p")
+            if p:
+                txt = _block_text(p)
+                if _is_plausible_abstract(txt):
+                    norm = txt.strip()
+                    if norm not in seen:
+                        out.append(norm); seen.add(norm)
+                        if len(out) >= max_items:
+                            return out
+
+    return out
+
+
+def _is_diva_record_url(url: str) -> bool:
+    """Return True if URL looks like a DiVA record page link."""
+    u = (url or "").lower()
+    if "diva-portal.org" not in u:
+        return False
+    if "record.jsf" not in u:
+        return False
+    # pid can be encoded or not
+    return bool(re.search(r"pid=diva2(?::|%3a|%253a)[0-9]+", u))
+
+
+def _find_diva_links(soup: BeautifulSoup, base_url: str, html: str, max_items: int = 3) -> List[str]:
+    """Find up to `max_items` DiVA record links in document order.
+
+    Looks at href, data-href, onclick, and finally raw HTML regex fallback.
+    """
+    found: List[str] = []
+    seen: set[str] = set()
+
+    # Anchors first
+    for a in soup.find_all("a"):
+        href = a.get("href")
+        if href:
+            url_abs = urljoin(base_url, href)
+            if _is_diva_record_url(url_abs) and url_abs not in seen:
+                found.append(url_abs); seen.add(url_abs)
+                if len(found) >= max_items:
+                    return found
+        dh = a.get("data-href")
+        if dh:
+            url_abs = urljoin(base_url, dh)
+            if _is_diva_record_url(url_abs) and url_abs not in seen:
+                found.append(url_abs); seen.add(url_abs)
+                if len(found) >= max_items:
+                    return found
+        oc = a.get("onclick") or ""
+        m = re.search(r"(https?://[^'\"\s]+diva-portal\.org[^'\"\s]*record\.jsf[^'\"\s]*)", oc, re.I)
+        if m:
+            url_abs = urljoin(base_url, m.group(1))
+            if _is_diva_record_url(url_abs) and url_abs not in seen:
+                found.append(url_abs); seen.add(url_abs)
+                if len(found) >= max_items:
+                    return found
+
+    # Raw HTML fallback
+    if html:
+        for m in re.finditer(r"(https?://[^'\"\s<>]+diva-portal\.org[^'\"\s<>]*record\.jsf[^'\"\s<>)]*)", html, re.I):
+            url_abs = m.group(1)
+            if _is_diva_record_url(url_abs) and url_abs not in seen:
+                found.append(url_abs); seen.add(url_abs)
+                if len(found) >= max_items:
+                    break
+
+    return found
+
+
+async def _safe_goto(page, url: str, timeout: int = 60000):
+    resp = await page.goto(url, wait_until="load", timeout=timeout)
+    try:
+        await page.wait_for_load_state("networkidle", timeout=2000)
+    except Exception:
+        pass
+    return resp
+
+
+async def _safe_content(page, attempts: int = 3) -> str:
+    last_err: Optional[Exception] = None
+    for _ in range(attempts):
+        try:
+            return await page.content()
+        except Exception as e:
+            last_err = e
+            try:
+                await page.wait_for_load_state("load", timeout=2000)
+            except Exception:
+                pass
+            await page.wait_for_timeout(200)
+    # last try, re-raise if it still fails
+    return await page.content()
+
+
 def _is_plausible_abstract(text: str) -> bool:
     """Heuristically decide if text looks like a real abstract, not a category label."""
     if not text:
@@ -154,16 +287,6 @@ def _find_publications_link(profile_html: str, profile_url: str) -> Optional[str
     As final fallback, use <profile>/publications.
     """
     soup = BeautifulSoup(profile_html, "html.parser")
-    # First: if there is a direct DiVA record link on the profile, prefer it
-    for a in soup.find_all("a"):
-        href = a.get("href")
-        if not href:
-            continue
-        abs_url = urljoin(profile_url, href)
-        low = abs_url.lower()
-        if ("diva-portal.org" in low) and ("record.jsf" in low) and ("pid=diva2:" in low):
-            logging.info("Profile has direct DiVA record link: %s", abs_url)
-            return abs_url
     keywords = (
         "publikationslista",
         "publikationer",
@@ -179,6 +302,9 @@ def _find_publications_link(profile_html: str, profile_url: str) -> Optional[str
         if not href:
             continue
         abs_url = urljoin(profile_url, href)
+        # Only consider KTH profile publications links, not external sites
+        if not (abs_url.startswith("https://www.kth.se/") or abs_url.startswith("http://www.kth.se/") or abs_url.startswith("/")):
+            continue
         if any(k in text for k in keywords) or "/publications" in abs_url:
             # If the found URL already points to a publications page, use it
             if "/publications" in abs_url:
@@ -191,8 +317,16 @@ def _find_publications_link(profile_html: str, profile_url: str) -> Optional[str
             return constructed
     # Fallback: try appending "/publications" to the current profile URL
     try:
+        parsed = urlparse(profile_url)
         base = _normalize_profile_base(profile_url)
-        fallback = f"{base}/publications"
+        # Preserve ?l=en|sv when present
+        lang_q = ""
+        if parsed.query and "l=" in parsed.query:
+            # keep only the l param
+            m = re.search(r"\bl=([a-zA-Z]{2})\b", parsed.query)
+            if m:
+                lang_q = f"?l={m.group(1)}"
+        fallback = f"{base}/publications{lang_q}"
         logging.info("Using fallback publications URL: %s", fallback)
         return fallback
     except Exception:
@@ -210,35 +344,22 @@ async def get_publication_abstracts(page, profile_url: str, profile_html: str, m
         return []
 
     logging.info("Checking publications page: %s", link)
-    resp = await page.goto(link, wait_until="domcontentloaded", timeout=45000)
+    resp = await _safe_goto(page, link, timeout=60000)
     if not resp or not (200 <= resp.status < 400):
         logging.warning("Failed to open publications list: %s", link)
         return []
     await page.wait_for_timeout(300)
     await _try_expand_abstract(page)
-    html = await page.content()
+    html = await _safe_content(page)
     soup = BeautifulSoup(html, "html.parser")
+    pre_abstracts: List[str] = []
 
     # If the publications page itself is a DiVA record, extract directly
     low_link = link.lower()
     if ("diva-portal.org" in low_link) and ("record.jsf" in low_link) and ("pid=diva2:" in low_link):
-        logging.info("Publications page is a DiVA record; extracting abstract directly")
-        abstract_text = None
-        # 1) dt/dd pattern
-        for dt in soup.find_all('dt'):
-            label = _t(dt.get_text(" ", strip=True)).lower()
-            if "abstract" in label or "sammanfatt" in label:
-                dd = dt.find_next_sibling('dd') or dt.find_next('dd')
-                if dd:
-                    abstract_text = _block_text(dd)
-                    break
-        # 2) common abstract containers by id/class
-        if not abstract_text:
-            el = soup.select_one('[id*="abstract"], [class*="abstract"]')
-            if el:
-                abstract_text = _block_text(el)
-        # 3) meta tags carrying abstract/description
-        if not abstract_text:
+        logging.info("Publications page is a DiVA record; extracting abstract(s) directly but continuing")
+        di = _collect_abstracts(soup, max_items=max_items)
+        if not di:
             meta = (
                 soup.find('meta', attrs={'name': 'DC.Description'}) or
                 soup.find('meta', attrs={'name': 'dc.description'}) or
@@ -246,96 +367,39 @@ async def get_publication_abstracts(page, profile_url: str, profile_html: str, m
                 soup.find('meta', attrs={'name': 'citation_abstract'}) or
                 soup.find('meta', attrs={'name': 'description'})
             )
-            if meta and meta.get('content'):
-                abstract_text = _t(meta.get('content'))
-        if abstract_text and _is_plausible_abstract(abstract_text):
-            logging.info("Extracted abstract from DiVA page")
-            return [abstract_text][:max_items]
+            if meta and meta.get('content') and _is_plausible_abstract(meta.get('content')):
+                di = [_t(meta.get('content'))]
+        pre_abstracts = di[:max_items]
 
-    # Inline abstracts on the publications list page
-    inline: List[str] = []
-    for el in soup.select('[class*="abstract"], [id*="abstract"], [class*="sammanfatt"], [id*="sammanfatt"]'):
-        text = _block_text(el)
-        if _is_plausible_abstract(text):
-            inline.append(text)
-            if len(inline) >= max_items:
-                break
-    if not inline:
-        np_txt = _heading_next_paragraph(soup)
-        if np_txt:
-            inline.append(np_txt)
-    if inline:
-        logging.info("Found %d inline abstracts on list page: %s", len(inline), link)
-        return inline[:max_items]
+    # Skip inline abstracts on list page; we will visit the first `max_items`
+    # publication entries and extract one abstract per entry.
 
-    # Collect candidate links to individual publications; prioritize DiVA record pages
-    anchors = soup.select("a[href]")
-    seen: set[str] = set()
-    diva_records: List[str] = []
-    other_links: List[str] = []
-    allow = re.compile(
-        r"(doi\.org/|arxiv\.org/abs/|ieeexplore\.ieee\.org/document/|dl\.acm\.org/doi/|"
-        r"link\.springer\.com/|springer\.com/|sciencedirect\.com/science/article/|"
-        r"onlinelibrary\.wiley\.com/doi/|tandfonline\.com/doi/|nature\.com/|"
-        r"scholar\.google\.com/|diva-portal\.org/|aclanthology\.org/|openreview\.net/|"
-        r"neurips\.cc/|papers\.nips\.cc/|proceedings\.mlr\.press/|openaccess\.thecvf\.com/|"
-        r"aaai\.org/|usenix\.org/|iclr\.cc/|icml\.cc/)"
-    )
-    for a in anchors:
-        href = a.get("href")
-        if not href:
-            continue
-        url_abs = urljoin(link, href)
-        # Skip obvious non-publication links (mailto, anchors)
-        if url_abs.startswith("mailto:") or "#" in href:
-            continue
-        if url_abs in seen:
-            continue
-        seen.add(url_abs)
-        u = url_abs.lower()
-        # Explicitly prioritize DiVA record pages
-        if ("diva-portal.org" in u) and ("record.jsf" in u) and ("pid=diva2:" in u):
-            diva_records.append(url_abs)
-            continue
-        if allow.search(url_abs):
-            other_links.append(url_abs)
-    pub_links: List[str] = diva_records + other_links
-    logging.info("Candidate publication links: %d (DiVA records: %d)", len(pub_links), len(diva_records))
-    for i, u in enumerate(diva_records[:5]):
-        logging.info("DiVARecord[%d]: %s", i, u)
+    # Find DiVA links anywhere on the publications page (document order)
+    pub_links: List[str] = _find_diva_links(soup, link, html, max_items=max_items)
+    logging.info("Selected first %d publication link(s) from list page", len(pub_links))
+    if pub_links:
+        logging.info("DiVA links on publications page: %s", ", ".join(pub_links))
+    else:
+        logging.info("DiVA links on publications page: none")
 
     abstracts: List[str] = []
     for url in pub_links:
         try:
-            resp = await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            resp = await _safe_goto(page, url, timeout=60000)
             if not resp or not (200 <= resp.status < 400):
                 continue
             await page.wait_for_timeout(200)
             await _try_expand_abstract(page)
-            phtml = await page.content()
+            phtml = await _safe_content(page)
             psoup = BeautifulSoup(phtml, "html.parser")
 
-            # Domain-specific selectors (check DiVA first)
+            # Domain-specific selectors (check DiVA first) then generic collectors
             u = url.lower()
-            abstract_text = None
+            page_abstracts: List[str] = []
             if "diva-portal.org" in u:
                 logging.info("DiVA portal page matched: %s", url)
-                # DiVA record pages often structure details in dl/dt/dd with label 'Abstract'
-                # 1) dt/dd pattern
-                for dt in psoup.find_all('dt'):
-                    label = _t(dt.get_text(" ", strip=True)).lower()
-                    if "abstract" in label or "sammanfatt" in label:
-                        dd = dt.find_next_sibling('dd') or dt.find_next('dd')
-                        if dd:
-                            abstract_text = _block_text(dd)
-                            break
-                # 2) common abstract containers by id/class
-                if not abstract_text:
-                    el = psoup.select_one('[id*="abstract"], [class*="abstract"]')
-                    if el:
-                        abstract_text = _block_text(el)
-                # 3) meta tags carrying abstract/description
-                if not abstract_text:
+                page_abstracts = _collect_abstracts(psoup, max_items=max_items - len(abstracts))
+                if not page_abstracts:
                     meta = (
                         psoup.find('meta', attrs={'name': 'DC.Description'}) or
                         psoup.find('meta', attrs={'name': 'dc.description'}) or
@@ -343,83 +407,113 @@ async def get_publication_abstracts(page, profile_url: str, profile_html: str, m
                         psoup.find('meta', attrs={'name': 'citation_abstract'}) or
                         psoup.find('meta', attrs={'name': 'description'})
                     )
-                    if meta and meta.get('content'):
-                        abstract_text = _t(meta.get('content'))
+                    if meta and meta.get('content') and _is_plausible_abstract(meta.get('content')):
+                        page_abstracts = [_t(meta.get('content'))]
             elif "arxiv.org/abs/" in u:
                 el = psoup.select_one('blockquote.abstract, meta[name="citation_abstract"]')
-                abstract_text = _t(el.get("content") if el and el.name == 'meta' else (el.get_text(" ", strip=True) if el else ""))
+                if el:
+                    txt = _t(el.get("content") if el and el.name == 'meta' else el.get_text(" ", strip=True))
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
             elif "ieeexplore.ieee.org/document/" in u:
                 el = psoup.select_one('.abstract-text, meta[name="citation_abstract"]')
-                abstract_text = _t(el.get("content") if el and el.name == 'meta' else (el.get_text(" ", strip=True) if el else ""))
+                if el:
+                    txt = _t(el.get("content") if el and el.name == 'meta' else el.get_text(" ", strip=True))
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
             elif "dl.acm.org/doi/" in u:
                 el = psoup.select_one('section.abstract, .abstractInFull')
-                abstract_text = _block_text(el) if el else None
+                if el:
+                    txt = _block_text(el)
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
             elif "aclanthology.org" in u:
-                el = psoup.select_one('section#abstract, div#abstract, p#abstract, div.abstract')
-                if not el:
-                    el = psoup.select_one('[id*="abstract"], [class*="abstract"]')
-                abstract_text = _block_text(el) if el else None
-                if not abstract_text:
+                el = psoup.select_one('section#abstract, div#abstract, p#abstract, div.abstract') or psoup.select_one('[id*="abstract"], [class*="abstract"]')
+                if el:
+                    txt = _block_text(el)
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
+                if not page_abstracts:
                     meta = psoup.find('meta', attrs={'name': 'citation_abstract'}) or psoup.find('meta', attrs={'name': 'description'})
-                    abstract_text = _t(meta.get('content')) if meta and meta.get('content') else None
+                    if meta and meta.get('content') and _is_plausible_abstract(meta.get('content')):
+                        page_abstracts.append(_t(meta.get('content')))
             elif "openreview.net" in u:
                 meta = psoup.find('meta', attrs={'name': 'citation_abstract'}) or psoup.find('meta', attrs={'name': 'description'})
-                abstract_text = _t(meta.get('content')) if meta and meta.get('content') else None
-                if not abstract_text:
+                if meta and meta.get('content') and _is_plausible_abstract(meta.get('content')):
+                    page_abstracts.append(_t(meta.get('content')))
+                if not page_abstracts:
                     el = psoup.select_one('[id*="abstract"], [class*="abstract"]')
-                    abstract_text = _t(el.get_text(" ", strip=True)) if el else None
+                    if el:
+                        txt = _block_text(el)
+                        if _is_plausible_abstract(txt):
+                            page_abstracts.append(txt)
             elif "proceedings.mlr.press" in u:
-                el = psoup.select_one('section#abstract, div#abstract, p#abstract')
-                if not el:
-                    el = psoup.select_one('[id*="abstract"], [class*="abstract"]')
-                abstract_text = _t(el.get_text(" ", strip=True)) if el else None
+                el = psoup.select_one('section#abstract, div#abstract, p#abstract') or psoup.select_one('[id*="abstract"], [class*="abstract"]')
+                if el:
+                    txt = _block_text(el)
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
             elif "openaccess.thecvf.com" in u:
-                el = psoup.select_one('#abstract, div#abstract, section#abstract')
-                if not el:
-                    el = psoup.select_one('[id*="abstract"], [class*="abstract"]')
-                abstract_text = _t(el.get_text(" ", strip=True)) if el else None
+                el = psoup.select_one('#abstract, div#abstract, section#abstract') or psoup.select_one('[id*="abstract"], [class*="abstract"]')
+                if el:
+                    txt = _block_text(el)
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
             elif ("neurips.cc" in u) or ("papers.nips.cc" in u) or ("aaai.org" in u) or ("usenix.org" in u) or ("iclr.cc" in u) or ("icml.cc" in u):
                 el = psoup.select_one('section#abstract, div#abstract, p#abstract, .abstract, section.abstract')
-                abstract_text = _t(el.get_text(" ", strip=True)) if el else None
-                if not abstract_text:
+                if el:
+                    txt = _block_text(el)
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
+                if not page_abstracts:
                     meta = psoup.find('meta', attrs={'name': 'citation_abstract'}) or psoup.find('meta', attrs={'name': 'description'})
-                    abstract_text = _t(meta.get('content')) if meta and meta.get('content') else None
+                    if meta and meta.get('content') and _is_plausible_abstract(meta.get('content')):
+                        page_abstracts.append(_t(meta.get('content')))
             elif "springer" in u or "link.springer.com" in u:
                 el = psoup.select_one('section#Abs1, section.Abstract')
-                abstract_text = _t(el.get_text(" ", strip=True)) if el else None
+                if el:
+                    txt = _block_text(el)
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
             elif "sciencedirect.com" in u:
                 el = psoup.select_one('div.Abstracts') or psoup.select_one('div.Abstracts p')
-                abstract_text = _block_text(el) if el else None
+                if el:
+                    txt = _block_text(el)
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
             elif "wiley.com/doi/" in u:
                 el = psoup.select_one('section.article-section__abstract, div.article-section__content')
-                abstract_text = _block_text(el) if el else None
+                if el:
+                    txt = _block_text(el)
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
             elif "tandfonline.com/doi/" in u:
                 el = psoup.select_one('div.abstractSection, section.abstract')
-                abstract_text = _block_text(el) if el else None
+                if el:
+                    txt = _block_text(el)
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
             elif "nature.com" in u:
                 el = psoup.select_one('div#Abs1-content, section#abstract')
-                abstract_text = _block_text(el) if el else None
-            elif "doi.org/" in u:
-                # some DOIs redirect client-side; try meta
-                meta = psoup.find("meta", attrs={"name": "dc.Description"}) or psoup.find("meta", attrs={"name": "description"})
-                abstract_text = _t(meta.get("content")) if meta and meta.get("content") else None
-
-            # Generic fallbacks
-            if not abstract_text:
-                np_txt = _heading_next_paragraph(psoup)
-                if np_txt:
-                    abstract_text = np_txt
-            if not abstract_text:
-                el = psoup.select_one('[class*="abstract"], [id*="abstract"], [class*="sammanfatt"], [id*="sammanfatt"]')
                 if el:
-                    abstract_text = _block_text(el)
-            if not abstract_text:
-                meta = psoup.find("meta", attrs={"name": "description"})
-                if meta and meta.get("content"):
-                    abstract_text = _t(meta["content"])
+                    txt = _block_text(el)
+                    if _is_plausible_abstract(txt):
+                        page_abstracts.append(txt)
+            elif "doi.org/" in u:
+                meta = psoup.find("meta", attrs={"name": "dc.Description"}) or psoup.find("meta", attrs={"name": "description"})
+                if meta and meta.get("content") and _is_plausible_abstract(meta.get('content')):
+                    page_abstracts.append(_t(meta.get('content')))
 
-            if abstract_text and _is_plausible_abstract(abstract_text):
-                abstracts.append(abstract_text)
+            # Generic collection if still empty
+            if not page_abstracts:
+                page_abstracts = _collect_abstracts(psoup, max_items=max_items - len(abstracts))
+            if not page_abstracts:
+                meta = psoup.find("meta", attrs={"name": "description"})
+                if meta and meta.get("content") and _is_plausible_abstract(meta.get('content')):
+                    page_abstracts = [_t(meta.get('content'))]
+
+            if page_abstracts:
+                abstracts.append(page_abstracts[0])
             if len(abstracts) >= max_items:
                 break
         except Exception as e:
