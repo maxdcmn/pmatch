@@ -1,0 +1,48 @@
+'use client';
+
+import { DataDrop } from './components/data-drop';
+import { Chat } from './components/chat';
+import { Contact } from './components/contact';
+import { WorkspaceSidebar } from './components/workspace-sidebar';
+import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+
+
+export default function WorkspaceLayout() {
+
+  const currentUser = {
+    id: "user-1",
+    email: "max@pmatch.com",
+    username: "Max",
+  }
+  return (
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full lg:h-screen">
+        <WorkspaceSidebar currentUser={currentUser} />
+
+        <main className="flex-1 lg:overflow-hidden">
+          <div className="bg-background min-h-screen p-4 lg:h-full lg:overflow-hidden">
+            <div className="fixed top-6 right-6 z-50 md:hidden">
+              <SidebarTrigger className="h-8 w-8 text-lg" />
+            </div>
+
+            <div className="flex min-h-full flex-col gap-4 lg:h-full lg:flex-row">
+              <div className="flex w-full flex-col gap-4 lg:w-2/5">
+                <div className="border-border h-[350px] overflow-hidden rounded-md border lg:h-3/7">
+                  <DataDrop />
+                </div>
+
+                <div className="border-border h-[500px] overflow-hidden rounded-md border lg:h-4/7">
+                  <Chat />
+                </div>
+              </div>
+
+              <div className="border-border h-[700px] w-full overflow-hidden rounded-md border lg:h-auto lg:w-3/5">
+                <Contact />
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </SidebarProvider>
+  );
+}
