@@ -1,28 +1,13 @@
 from __future__ import annotations
-
-"""
-FastAPI application template.
-
-This file sets up a minimal FastAPI app with:
-- CORS configured for local development
-- A health check endpoint
-- A versioned API router (`/api/v1`) with placeholder CRUD routes
-
-Replace placeholder implementations with real logic as needed.
-"""
-
-from fastapi import FastAPI, APIRouter, HTTPException, status
+from fastapi import FastAPI, APIRouter, HTTPException, status, UploadFile, File
 from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
+from typing import Optional
+import uvicorn
 
-
-# ----------------------------------------------------------------------------
-# App setup
-# ----------------------------------------------------------------------------
 
 app = FastAPI(title="PMatch API", version="0.1.0")
 
-# Configure CORS for local Next.js dev and same-origin by default
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -36,10 +21,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# ----------------------------------------------------------------------------
-# Models (placeholders)
-# ----------------------------------------------------------------------------
 
 class ItemCreate(BaseModel):
     """Request model for creating an item (placeholder)."""
@@ -56,90 +37,69 @@ class ItemRead(BaseModel):
     description: str | None = None
 
 
-# ----------------------------------------------------------------------------
-# Routers
-# ----------------------------------------------------------------------------
+class LLMRequest(BaseModel):
+    message: str = Field(..., min_length=1, description="Message to send to the LLM")
 
-api = APIRouter(prefix="/api/v1", tags=["api"])
 
+class LLMResponse(BaseModel):
+    message: str = Field(..., description="Your original message to the LLM")
+    response: str = Field(..., description="LLM's response to your message")
+    success: bool = True
+    data: Optional[dict] = None
+
+
+class UploadResponse(BaseModel):
+    filename: str
+    content_type: str
+    message: str
+
+api = APIRouter(prefix="/api", tags=["api"])
 
 @app.get("/healthz", tags=["health"], summary="Health check")
 def health() -> dict[str, str]:
     return {"status": "ok", "version": app.version}
 
 
-@app.get("/", tags=["meta"], summary="Service info")
-def root() -> dict[str, str]:
-    return {"service": app.title, "version": app.version}
+@api.post("/upload-pdf", response_model=UploadResponse, summary="Upload PDF file")
+async def upload_pdf(file: UploadFile = File(...)) -> UploadResponse:
+    
+    if not file.content_type == "application/pdf":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a PDF"
+        )
 
-
-@api.get("/items", response_model=list[ItemRead], summary="List items")
-def list_items() -> list[ItemRead]:
-    # TODO: implement listing from storage/database
-    return []
-
-
-@api.post(
-    "/items",
-    response_model=ItemRead,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create item",
-)
-def create_item(payload: ItemCreate) -> ItemRead:
-    # TODO: implement creation logic
-    # Using 501 here signals the endpoint is not implemented yet
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="create_item not implemented",
+    await file.seek(0)
+    
+    return UploadResponse(
+        filename=file.filename,
+        content_type=file.content_type,
+        message="PDF uploaded successfully"
     )
 
 
-@api.get("/items/{item_id}", response_model=ItemRead, summary="Get item by id")
-def get_item(item_id: int) -> ItemRead:
-    # TODO: implement retrieval logic
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=f"get_item not implemented for id={item_id}",
+@api.post("/llm-chat", response_model=LLMResponse, summary="Chat with LLM")
+def llm_chat(request: LLMRequest) -> LLMResponse:
+    llm_response = "This is a placeholder."
+    
+    return LLMResponse(
+        message=request.message,
+        response=llm_response,
+        success=True,
+        data={"contact": {
+            "text": "Dear Mr. Doe, I'm Max. I'm reaching out to you because I'm interested in your work.",
+            "email": "max@pmatch.com",
+            "subject": "Collaboration proposal",
+            }
+        }
     )
 
 
-@api.put("/items/{item_id}", response_model=ItemRead, summary="Update item")
-def update_item(item_id: int, payload: ItemCreate) -> ItemRead:
-    # TODO: implement update logic
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=f"update_item not implemented for id={item_id}",
-    )
-
-
-@api.delete(
-    "/items/{item_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete item",
-)
-def delete_item(item_id: int) -> None:
-    # TODO: implement delete logic
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=f"delete_item not implemented for id={item_id}",
-    )
-
-
-# Register router(s)
 app.include_router(api)
 
-
-# ----------------------------------------------------------------------------
-# Local dev entrypoint (optional)
-# ----------------------------------------------------------------------------
-
 if __name__ == "__main__":
-    import uvicorn
-
-    # Run with: python backend/app.py
-    # Or: uvicorn backend.app:app --reload
     uvicorn.run(
-        "backend.app:app",
+        "app:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
