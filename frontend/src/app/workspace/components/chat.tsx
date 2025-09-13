@@ -11,13 +11,19 @@ type Message = {
   role: 'user' | 'ai';
   timestamp: Date;
   error?: boolean;
+  contactData?: {
+    text: string;
+    email: string;
+    subject: string;
+  };
 };
 
 type ChatProps = {
   className?: string;
+  onContactDataUpdate?: (data: { text: string; email: string; subject: string }) => void;
 };
 
-export function Chat({ className }: ChatProps) {
+export function Chat({ className, onContactDataUpdate }: ChatProps) {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -55,9 +61,13 @@ export function Chat({ className }: ChatProps) {
         content: response.response,
         role: 'ai',
         timestamp: new Date(),
+        contactData: response.data?.contact,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+      if (response.data?.contact) {
+        onContactDataUpdate?.(response.data.contact);
+      }
     } catch (error) {
       console.error('Chat API error:', error);
 
@@ -104,7 +114,12 @@ export function Chat({ className }: ChatProps) {
                               : 'bg-muted text-foreground',
                         )}
                       >
-                        {msg.content}
+                        <div>{msg.content}</div>
+                        {msg.contactData && (
+                          <div className="text-muted-foreground mt-1 text-[11px] italic">
+                            Changed contact
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
