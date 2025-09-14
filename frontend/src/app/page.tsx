@@ -3,10 +3,11 @@ import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { AnimatedMap } from '@/components/animated-map';
+import { FadeUp } from '@/components/fade-up';
 
 export default function Home() {
   return (
-    <div className="bg-background relative min-h-screen px-1">
+    <div className="bg-background relative min-h-screen">
       <header className="relative z-10 mx-auto mb-12 flex w-full max-w-6xl items-center justify-between px-6 py-4">
         <div className="flex items-center gap-8">
           <Link href="/">
@@ -22,7 +23,7 @@ export default function Home() {
       <main className="bg-background border-border mx-auto w-full max-w-3xl border-2 p-6">
         <section className="mb-6">
           <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-2 md:gap-6">
-            <div className="relative">
+            <FadeUp className="relative" delay={0.02}>
               <h1 className="leading-tightest relative z-10 font-mono text-4xl tracking-tight sm:text-5xl md:text-6xl">
                 Experience matching: easy, precise
               </h1>
@@ -53,10 +54,13 @@ export default function Home() {
                   another LLM agent
                 </li>
               </ul>
-            </div>
-            <div className="border-border relative h-full min-h-[320px] border-2 md:min-h-[420px]">
+            </FadeUp>
+            <FadeUp
+              className="border-border relative h-full min-h-[320px] border-2 md:min-h-[420px]"
+              delay={0.06}
+            >
               <AnimatedMap />
-            </div>
+            </FadeUp>
           </div>
         </section>
         <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -71,7 +75,7 @@ export default function Home() {
 
 function Step({ num, title, desc }: { num: number; title: string; desc: string }) {
   return (
-    <div className="border-border border-2 p-4">
+    <FadeUp className="border-border border-2 p-4" delay={0.08 + num * 0.04}>
       <div className="mb-2 flex items-center gap-2">
         <span className="flex size-6 items-center justify-center border-2 border-emerald-600 text-[11px] font-bold text-emerald-700 dark:border-emerald-400 dark:text-emerald-300">
           {num}
@@ -79,6 +83,6 @@ function Step({ num, title, desc }: { num: number; title: string; desc: string }
         <span className="text-sm font-medium">{title}</span>
       </div>
       <p className="text-muted-foreground text-sm">{desc}</p>
-    </div>
+    </FadeUp>
   );
 }

@@ -6,6 +6,7 @@ import { Chat } from './components/chat';
 import { Contact } from './components/contact';
 import { WorkspaceSidebar } from './components/workspace-sidebar';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { FadeUp } from '@/components/fade-up';
 
 type ContactData = {
   text: string;
@@ -34,18 +35,27 @@ export default function WorkspaceLayout() {
 
             <div className="flex min-h-full flex-col gap-4 lg:h-full lg:flex-row">
               <div className="flex w-full flex-col gap-4 lg:w-2/5">
-                <div className="border-border h-[350px] overflow-hidden border-2 lg:h-3/7">
+                <FadeUp
+                  className="border-border h-[350px] overflow-hidden border-2 lg:h-3/7"
+                  delay={0.02}
+                >
                   <DataDrop />
-                </div>
+                </FadeUp>
 
-                <div className="border-border h-[500px] overflow-hidden border-2 lg:h-4/7">
+                <FadeUp
+                  className="border-border h-[500px] overflow-hidden border-2 lg:h-4/7"
+                  delay={0.06}
+                >
                   <Chat onContactDataUpdate={setContactData} />
-                </div>
+                </FadeUp>
               </div>
 
-              <div className="border-border h-[700px] w-full overflow-hidden border-2 lg:h-auto lg:w-3/5">
+              <FadeUp
+                className="border-border h-[700px] w-full overflow-hidden border-2 lg:h-auto lg:w-3/5"
+                delay={0.1}
+              >
                 <Contact incomingContactData={contactData} onContactDataUpdate={setContactData} />
-              </div>
+              </FadeUp>
             </div>
           </div>
         </main>
