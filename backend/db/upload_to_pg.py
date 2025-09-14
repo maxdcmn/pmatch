@@ -10,7 +10,7 @@ from typing import List
 
 from dotenv import load_dotenv
 
-from pg_client import upsert_profile
+from pg_client import upsert_profile, clear_null_profiles
 
 
 def deterministic_id(url: str) -> str:
@@ -79,6 +79,10 @@ def main() -> None:
         )
 
     print(f"Uploaded {len(rows)} rows to Postgres")
+    
+    # Clean up profiles with null or empty abstracts
+    clear_null_profiles()
+    print("Cleared profiles with null or empty abstracts")
 
 
 if __name__ == "__main__":
