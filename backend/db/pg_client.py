@@ -75,4 +75,10 @@ def search_profiles(query_embedding: List[float], top_k: int = 5) -> List[Dict]:
             )
             return cur.fetchall()
 
-
+def clear_null_profiles() -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM profiles WHERE abstracts IS NULL OR abstracts = '{}'::text[]",
+            )
+            conn.commit()
