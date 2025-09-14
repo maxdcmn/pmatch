@@ -51,7 +51,7 @@ def _embed_mean(texts: List[str]) -> List[float] | None:
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser(description="Upload CSV to Postgres (pgvector)")
-    parser.add_argument("--csv", default=str(Path(__file__).parents[1] / "scraper" / "kth_researchers.csv"))
+    parser.add_argument("--csv", default=str(Path(__file__).parents[1] / "scraper" / "eu_researchers.csv"))
     args = parser.parse_args()
 
     rows = []
