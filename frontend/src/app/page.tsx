@@ -6,7 +6,7 @@ import { AnimatedMap } from '@/components/animated-map';
 
 export default function Home() {
   return (
-    <div className="bg-background relative min-h-screen">
+    <div className="bg-background relative min-h-screen px-1">
       <header className="relative z-10 mx-auto mb-12 flex w-full max-w-6xl items-center justify-between px-6 py-4">
         <div className="flex items-center gap-8">
           <Link href="/">

@@ -88,8 +88,8 @@ export function Chat({ className, onContactDataUpdate }: ChatProps) {
   return (
     <div className={cn('bg-card flex h-full flex-col', className)}>
       <div className="flex min-h-0 flex-1 flex-col p-6">
-        <div className="bg-accent border-border flex h-full flex-col overflow-hidden rounded-sm border">
-          <div className="min-h-0 flex-1">
+        <div className="flex h-full flex-col overflow-hidden">
+          <div className="bg-accent min-h-0 flex-1">
             <div className="h-full overflow-y-auto p-3">
               {messages.length === 0 ? (
                 <div className="flex h-full items-center justify-center">
@@ -106,11 +106,11 @@ export function Chat({ className, onContactDataUpdate }: ChatProps) {
                     >
                       <div
                         className={cn(
-                          'max-w-[80%] rounded-lg px-3 py-2 text-sm break-words',
+                          'max-w-[80%] px-3 py-2 text-sm break-words',
                           msg.role === 'user'
                             ? 'bg-primary text-primary-foreground ml-auto'
                             : msg.error
-                              ? 'bg-destructive/10 text-destructive border-destructive/20 border'
+                              ? 'bg-destructive/10 text-destructive'
                               : 'bg-muted text-foreground',
                         )}
                       >
@@ -125,7 +125,7 @@ export function Chat({ className, onContactDataUpdate }: ChatProps) {
                   ))}
                   {isLoading && (
                     <div className="flex justify-start">
-                      <div className="bg-muted text-foreground rounded-lg px-3 py-2 text-sm">
+                      <div className="bg-muted text-foreground px-3 py-2 text-sm">
                         <span className="animate-pulse">Thinking...</span>
                       </div>
                     </div>
@@ -136,25 +136,25 @@ export function Chat({ className, onContactDataUpdate }: ChatProps) {
             </div>
           </div>
 
-          <div className="border-border border-t"></div>
-
-          <form onSubmit={handleSubmit} className="flex flex-shrink-0 items-center px-3 py-2">
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ask anything"
-              className="text-foreground placeholder:text-muted-foreground flex-1 border-none bg-transparent text-sm outline-none"
-              disabled={isLoading}
-            />
-            <button
-              type="submit"
-              disabled={!message.trim() || isLoading}
-              className="text-muted-foreground hover:text-foreground ml-2 cursor-pointer p-1 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Send size={16} />
-            </button>
-          </form>
+          <div className="bg-accent mt-2 border-2 border-transparent transition-colors focus-within:border-emerald-600 dark:focus-within:border-emerald-400">
+            <form onSubmit={handleSubmit} className="flex flex-shrink-0 items-center px-3 py-2">
+              <input
+                type="text"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Ask anything"
+                className="text-foreground placeholder:text-muted-foreground flex-1 border-none bg-transparent text-sm outline-none"
+                disabled={isLoading}
+              />
+              <button
+                type="submit"
+                disabled={!message.trim() || isLoading}
+                className="text-muted-foreground hover:text-foreground ml-2 cursor-pointer p-1 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send size={16} />
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>

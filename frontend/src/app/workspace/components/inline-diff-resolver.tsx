@@ -86,8 +86,8 @@ export function InlineDiffResolver({
 
   const markerStyle = (rgba: string): React.CSSProperties => ({
     boxShadow: `inset 0 -0.35em 0 ${rgba}`,
-    WebkitBoxDecorationBreak: 'clone' as any,
-    boxDecorationBreak: 'clone' as any,
+    WebkitBoxDecorationBreak: 'clone' as React.CSSProperties['WebkitBoxDecorationBreak'],
+    boxDecorationBreak: 'clone' as React.CSSProperties['boxDecorationBreak'],
   });
 
   const clipMiddle = (text: string, max = 60) => {
@@ -140,8 +140,8 @@ export function InlineDiffResolver({
             )}
             {addCore && (
               <span
-                className={cn('align-baseline text-green-800 dark:text-green-200')}
-                style={markerStyle('rgba(34,197,94,0.25)')}
+                className={cn('align-baseline text-emerald-800 dark:text-emerald-200')}
+                style={markerStyle('rgba(16,185,129,0.25)')}
               >
                 {addCore}
               </span>
@@ -152,7 +152,7 @@ export function InlineDiffResolver({
                 type="button"
                 aria-label="Accept change"
                 onClick={() => setDecision(idx, 'accept')}
-                className="inline-flex h-[1em] w-[1em] items-center justify-center rounded align-baseline leading-none text-green-700 hover:bg-green-500/20"
+                className="inline-flex h-[1em] w-[1em] items-center justify-center rounded align-baseline leading-none text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300 dark:hover:bg-emerald-400/20"
               >
                 <Check className="h-[0.9em] w-[0.9em]" />
               </button>
@@ -160,7 +160,7 @@ export function InlineDiffResolver({
                 type="button"
                 aria-label="Decline change"
                 onClick={() => setDecision(idx, 'decline')}
-                className="inline-flex h-[1em] w-[1em] items-center justify-center rounded leading-none text-red-700 hover:bg-red-500/20"
+                className="inline-flex h-[1em] w-[1em] items-center justify-center rounded leading-none text-red-700 hover:bg-red-500/20 dark:text-red-300 dark:hover:bg-red-400/20"
               >
                 <X className="h-[0.9em] w-[0.9em]" />
               </button>

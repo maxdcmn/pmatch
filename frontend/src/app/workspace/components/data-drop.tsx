@@ -118,7 +118,7 @@ export function DataDrop({ className }: DataDropProps) {
       <div className="px-6 pt-6 pb-4">
         <h2 className="text-2xl">Personal Context</h2>
         <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
-          CV-papers-projects
+          CV, papers, projects
         </p>
       </div>
 
@@ -131,7 +131,7 @@ export function DataDrop({ className }: DataDropProps) {
           onDragLeave={onDragLeave}
           onDrop={onDrop}
           className={cn(
-            'border-border h-full w-full cursor-pointer rounded-md border transition-colors',
+            'border-border h-full w-full cursor-pointer transition-colors',
             'bg-accent flex min-h-0 flex-col overflow-hidden p-4',
             isDragOver ? 'border-primary bg-primary/5' : 'border-border',
           )}
@@ -147,12 +147,12 @@ export function DataDrop({ className }: DataDropProps) {
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="border-border min-h-0 flex-1 overflow-y-auto border-t border-b">
+              <div className="border-border min-h-0 flex-1 overflow-y-auto">
                 <ul className="space-y-2">
                   {files.map((f, i) => (
                     <li
                       key={`${f.name}-${i}`}
-                      className="border-border bg-card/50 flex items-center justify-between gap-3 rounded border p-2"
+                      className="border-border bg-muted flex items-center justify-between gap-3 p-2"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex min-w-0 items-center gap-2">
@@ -161,7 +161,7 @@ export function DataDrop({ className }: DataDropProps) {
                         ) : f.status === 'error' ? (
                           <AlertCircle className="shrink-0 text-red-500" size={16} />
                         ) : f.status === 'uploading' ? (
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                          <div className="h-4 w-4 animate-spin border-blue-500 border-t-transparent" />
                         ) : (
                           <FileIcon className="text-muted-foreground shrink-0" size={16} />
                         )}
