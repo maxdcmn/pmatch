@@ -1,7 +1,10 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Force backend URL to ensure frontend connects to the correct server
+const API_BASE_URL = 'http://localhost:8000';
 
 if (typeof window !== 'undefined') {
   console.log('API Base URL:', API_BASE_URL);
+  console.log('Environment:', process.env.NEXT_PUBLIC_API_URL);
+  console.log('Full API client base:', API_BASE_URL);
 }
 
 export interface Contact {

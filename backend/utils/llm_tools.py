@@ -4,6 +4,9 @@ from typing import Any, Dict, List, Optional, Callable
 from db.pg_client import search_profiles, get_distinct_institutions, get_user_by_id, find_matching_researchers
 from openai import OpenAI
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ResearcherMatchTool:

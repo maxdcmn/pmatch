@@ -362,46 +362,68 @@ async def generate_email(request: EmailGenerationRequest) -> EmailGenerationResp
         for contact in request.contacts:
             researchers_summary.append(f"- {contact.name} ({contact.title or 'Researcher'}) at {contact.institution or 'University'}")
         
-        system_prompt = f"""You are an expert at writing personalized academic cold emails for research collaboration inquiries.
+        system_prompt = f"""You are an expert at writing compelling academic cold emails that get responses and lead to research collaborations.
 
-Generate a professional, engaging cold email from a {user_data['detected_kind']} candidate to multiple researchers.
+Generate a highly personalized, engaging cold email from a {user_data['detected_kind']} candidate to multiple researchers.
 
-REQUIREMENTS:
-- Professional but warm tone
-- Reference the collective research areas and institutions represented
-- Mention specific research themes from their combined work
-- Clear research interest alignment with the group
-- Specific mention of seeking research position/collaboration opportunities
-- Include university/institution context for the region/area
-- 250-350 words maximum
-- Generate both subject and body
-- Address it as a general inquiry to the research community
+ADVANCED REQUIREMENTS:
+- Hook them in the first sentence with specific research connection
+- Reference SPECIFIC recent work, methodologies, or findings from their abstracts
+- Show deep understanding of their research challenges and opportunities
+- Propose concrete collaboration ideas or research directions
+- Demonstrate value you can bring to their work
+- Professional yet conversational tone that builds rapport
+- Clear but compelling call-to-action
+- 300-450 words for depth while staying concise
+- Subject line that sparks curiosity and relevance
+
+PERSONALIZATION STRATEGY:
+- Lead with most compelling research intersection
+- Quote or reference specific recent papers/findings
+- Identify research gaps you could help fill
+- Suggest specific methodologies or approaches you bring
+- Mention complementary expertise or unique perspectives
+- Reference their institutional strengths and resources
 
 USER CONTEXT:
 - Document type: {user_data['detected_kind']}
 - Title: {user_data['title']}
-- Content summary: {user_data['content'][:500]}...
+- Background: {user_data['content'][:800]}...
 
-RESEARCHERS GROUP CONTEXT:
-- Number of researchers: {len(request.contacts)}
-- Institutions: {', '.join(institutions)}
-- Countries: {', '.join(countries)}
-- Research areas: {', '.join(research_areas)}
-- Researchers:
+RESEARCH COMMUNITY CONTEXT:
+- Researcher count: {len(request.contacts)}
+- Leading institutions: {', '.join(institutions)}
+- Geographic focus: {', '.join(countries)}
+- Research domains: {', '.join(research_areas)}
+- Key researchers:
 {chr(10).join(researchers_summary)}
-- Sample research themes from their work: {all_abstracts[:5]}
+- Recent research themes and findings: {all_abstracts[:5]}
+
+EMAIL STRUCTURE:
+1. HOOK: Specific research connection that grabs attention
+2. CONTEXT: Brief but impressive background positioning  
+3. VALUE: What unique perspective/skills you bring
+4. COLLABORATION: Specific ideas for working together
+5. ACTION: Clear next step that's easy to say yes to
+
+EFFECTIVE EMAIL PATTERNS:
+- "I was particularly intrigued by [specific research finding] in your recent work on [topic]..."
+- "Your approach to [methodology] aligns remarkably with my experience in [area]..."
+- "I believe there's significant potential for collaboration, particularly in [specific intersection]..."
+- "I'd welcome the opportunity to discuss how my work on [X] could complement your research on [Y]..."
+- Avoid generic phrases like "I am writing to inquire" or "I hope this email finds you well"
 
 Return JSON with:
-- "subject": email subject line (should reflect multiple institutions/researchers)
-- "body": email body content (address as general inquiry to research community)
-- "personalization_notes": list of specific personalization elements used
+- "subject": Compelling subject line that references specific research area
+- "body": Persuasive email body following the structure above
+- "personalization_notes": List of specific research connections and personalizations used
 """
 
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Generate a cold email for research position inquiry to the research community at {', '.join(institutions[:3])} focusing on {', '.join(research_areas[:3])}."}
+                {"role": "user", "content": f"Write a compelling research collaboration email targeting the {', '.join(research_areas[:2])} community at {', '.join(institutions[:2])}. Focus on specific research intersections from their recent work on {', '.join([abs[:100] + '...' for abs in all_abstracts[:2]])}. Make it personal and collaboration-focused, not just a job inquiry."}
             ],
             temperature=0.7,
             response_format={"type": "json_object"}
