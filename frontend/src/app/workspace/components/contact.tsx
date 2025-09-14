@@ -98,14 +98,14 @@ export function Contact({ className, incomingContactData, onContactDataUpdate }:
               <button
                 type="button"
                 onClick={acceptAll}
-                className="inline-flex items-center rounded border border-green-600/40 px-2 py-1 text-[11px] font-medium text-green-700 hover:bg-green-500/10"
+                className="inline-flex items-center border-2 border-emerald-600 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-600 hover:text-white dark:border-emerald-400 dark:text-emerald-300 dark:hover:bg-emerald-400 dark:hover:text-black"
               >
                 <Check size={12} className="mr-1" /> Accept All
               </button>
               <button
                 type="button"
                 onClick={declineAll}
-                className="inline-flex items-center rounded border border-red-600/40 px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-500/10"
+                className="inline-flex items-center border-2 border-red-600 px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-600 hover:text-white dark:border-red-400 dark:text-red-300 dark:hover:bg-red-400 dark:hover:text-black"
               >
                 <X size={12} className="mr-1" /> Decline All
               </button>
@@ -115,8 +115,8 @@ export function Contact({ className, incomingContactData, onContactDataUpdate }:
       </div>
 
       <div className="flex-1 px-6 pb-6">
-        <div className="bg-accent border-border flex h-full flex-col overflow-hidden rounded-sm border">
-          <div className="border-border flex items-center border-b">
+        <div className="flex h-full flex-col overflow-hidden">
+          <div className="bg-accent mb-2 flex items-center border-2 border-transparent transition-colors focus-within:border-emerald-600 dark:focus-within:border-emerald-400">
             <span className="text-foreground px-3 py-2 text-sm select-none">To:</span>
             {pendingChanges && status.email === 'pending' ? (
               <div className="flex-1 bg-transparent py-2 pr-4 text-sm">
@@ -155,7 +155,7 @@ export function Contact({ className, incomingContactData, onContactDataUpdate }:
             )}
           </div>
 
-          <div className="border-border flex items-center border-b">
+          <div className="bg-accent mb-2 flex items-center border-2 border-transparent transition-colors focus-within:border-emerald-600 dark:focus-within:border-emerald-400">
             <span className="text-foreground px-3 py-2 text-sm select-none">Subject:</span>
             {pendingChanges && status.subject === 'pending' ? (
               <div className="flex-1 bg-transparent py-2 pr-4 text-sm">
@@ -194,7 +194,7 @@ export function Contact({ className, incomingContactData, onContactDataUpdate }:
             )}
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col">
+          <div className="bg-accent flex min-h-0 flex-1 flex-col border-2 border-transparent transition-colors focus-within:border-emerald-600 dark:focus-within:border-emerald-400">
             {pendingChanges && status.text === 'pending' ? (
               <div className="w-full flex-1 overflow-y-auto px-3 py-2 text-sm leading-relaxed">
                 <div className="p-0">
@@ -242,10 +242,10 @@ export function Contact({ className, incomingContactData, onContactDataUpdate }:
                 <button
                   onClick={handleSaveToTemplates}
                   className={cn(
-                    'group flex cursor-pointer items-center gap-0 rounded-sm hover:gap-2',
-                    'bg-background text-foreground',
-                    'hover:bg-accent/30 transition-all duration-300 ease-out',
-                    'border-border border text-sm font-medium',
+                    'group flex cursor-pointer items-center gap-0 hover:gap-2',
+                    'bg-muted text-foreground',
+                    'hover:bg-muted transition-all duration-300 ease-out',
+                    'text-sm font-medium',
                     'px-2.5 py-2 hover:px-4 hover:py-2',
                   )}
                 >
@@ -258,10 +258,10 @@ export function Contact({ className, incomingContactData, onContactDataUpdate }:
                 <button
                   onClick={handleOpenInMail}
                   className={cn(
-                    'group flex cursor-pointer items-center gap-0 rounded-sm hover:gap-2',
+                    'group flex cursor-pointer items-center gap-0 hover:gap-2',
                     'bg-primary text-primary-foreground',
                     'hover:bg-primary/90 transition-all duration-300 ease-out',
-                    'border-primary/20 border text-sm font-medium',
+                    'text-sm font-medium',
                     'px-2.5 py-2 hover:px-4 hover:py-2',
                   )}
                 >

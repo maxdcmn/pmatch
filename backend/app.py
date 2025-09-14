@@ -3,9 +3,12 @@ from fastapi import FastAPI, APIRouter, HTTPException, status, UploadFile, File
 from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
 from typing import Optional, List
+import os
+from dotenv import load_dotenv
 import uvicorn
 
 
+load_dotenv()
 app = FastAPI(title="PMatch API", version="0.1.0")
 
 app.add_middleware(
@@ -119,7 +122,10 @@ def _embed_query(text: str) -> List[float]:
         from openai import OpenAI  # type: ignore
     except Exception:
         raise HTTPException(status_code=500, detail="OpenAI client not installed")
-    client = OpenAI()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not set")
+    client = OpenAI(api_key=api_key)
     resp = client.embeddings.create(model="text-embedding-3-small", input=[text])
     return resp.data[0].embedding  # type: ignore
 

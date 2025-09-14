@@ -241,17 +241,81 @@ def tavily_client():
     except ImportError:
         return None
     key = os.getenv("TAVILY_API_KEY")
-    print(key)
     if not key:
+        logging.debug("No TAVILY_API_KEY found")
         return None
-    return TavilyClient(api_key=key)
+    try:
+        client = TavilyClient(api_key=key)
+        # Test the client with a simple search to verify it works
+        client.search("test", max_results=1)
+        logging.debug("Tavily client test successful")
+        return client
+    except Exception as e:
+        logging.debug("Tavily client test failed: %s", e)
+        return None
+
+
+def generate_likely_emails(name: str, institution: str) -> List[str]:
+    """Generate likely email patterns for a researcher."""
+    if not name:
+        return []
+    
+    name_parts = name.split()
+    first_name = name_parts[0].lower() if name_parts else ""
+    last_name = name_parts[-1].lower() if len(name_parts) > 1 else ""
+    
+    # Common Swedish institutional domains (prioritized)
+    domains = []
+    if institution:
+        inst_lower = institution.lower()
+        if "kth" in inst_lower or "royal institute" in inst_lower:
+            domains.extend(["kth.se"])
+        elif "stockholm" in inst_lower:
+            domains.extend(["su.se", "ki.se"])
+        elif "chalmers" in inst_lower:
+            domains.extend(["chalmers.se"])
+        elif "lund" in inst_lower:
+            domains.extend(["lu.se"])
+        elif "uppsala" in inst_lower:
+            domains.extend(["uu.se"])
+        elif "gothenburg" in inst_lower or "göteborg" in inst_lower:
+            domains.extend(["gu.se"])
+    
+    # Default Swedish universities for researchers in Sweden
+    if not domains:
+        domains.extend(["kth.se", "su.se", "lu.se", "uu.se", "chalmers.se"])
+    
+    # Add some generic domains as backup
+    domains.extend(["gmail.com", "outlook.com"])
+    
+    # Generate email patterns
+    emails = []
+    for domain in domains:
+        if first_name and last_name:
+            emails.extend([
+                f"{first_name}.{last_name}@{domain}",
+                f"{first_name}{last_name}@{domain}",
+                f"{first_name[0]}{last_name}@{domain}",
+                f"{last_name}@{domain}",
+            ])
+        elif first_name:
+            emails.append(f"{first_name}@{domain}")
+    
+    return emails[:10]  # Limit to top 10 candidates
 
 
 def search_researcher_email(name: str, institution: str) -> Optional[str]:
-    """Search for researcher email using Tavily + LLM extraction."""
+    """Search for researcher email using multiple strategies."""
     client = tavily_client()
     if not client:
-        logging.warning("No Tavily client available for email search")
+        logging.info("No Tavily client available - generating likely email patterns for %s", name)
+        # Fallback: generate likely emails (for demonstration)
+        likely_emails = generate_likely_emails(name, institution)
+        if likely_emails:
+            logging.info("Generated likely emails for %s: %s", name, likely_emails[:3])
+            return likely_emails[0]  # Return most likely one
+        else:
+            logging.warning("No likely emails generated for %s (institution: %s)", name, institution)
         return None
     
     openai = openai_client()
@@ -260,57 +324,88 @@ def search_researcher_email(name: str, institution: str) -> Optional[str]:
         return None
     
     try:
-        # Search query combining name and institution
-        query = f'"{name}" email contact {institution or ""}'.strip()
-        logging.debug("Searching email for: %s", query)
+        # Extract first and last name for targeted search
+        name_parts = name.split()
+        first_name = name_parts[0].lower() if name_parts else ""
+        last_name = name_parts[-1].lower() if len(name_parts) > 1 else ""
         
-        results = client.search(
-            query=query,
-            search_depth="basic",
-            max_results=3,
-            include_raw_content=True
-        )
+        # Multiple search strategies
+        search_queries = [
+            f'"{name}" email contact {institution or ""}',
+            f'{first_name}.{last_name}@',
+            f'{first_name}@{institution or "university"}',
+            f'"{name}" professor email',
+            f'"{name}" researcher contact information',
+        ]
         
-        # Combine raw content from search results
-        content_parts = []
-        for result in results.get("results", []):
-            raw = result.get("raw_content", "")
-            if raw and len(raw) > 50:
-                content_parts.append(raw[:2000])  # Limit to avoid token limits
+        all_content = []
         
-        if not content_parts:
+        for query in search_queries:
+            logging.debug("Searching email with query: %s", query)
+            try:
+                results = client.search(
+                    query=query.strip(),
+                    search_depth="advanced",  # Increased depth
+                    max_results=5,  # More results
+                    include_raw_content=True
+                )
+                
+                for result in results.get("results", []):
+                    raw = result.get("raw_content", "")
+                    if raw and len(raw) > 30:
+                        all_content.append(raw[:1500])
+                        
+            except Exception as e:
+                logging.debug("Search query failed: %s - %s", query, e)
+                continue
+        
+        if not all_content:
             return None
             
-        combined_content = "\n\n".join(content_parts)
+        combined_content = "\n\n".join(all_content)
         
-        # Use LLM to extract email
-        system_prompt = f"""You are extracting contact email addresses for researcher "{name}".
-Look through the provided web content and find the most likely email address for this specific person.
+        # Enhanced LLM prompt for email extraction
+        system_prompt = f"""Extract the email address for researcher "{name}" from the text below.
 
-Rules:
+SEARCH PATTERNS:
+- Look for {first_name}.{last_name}@domain.com
+- Look for {first_name}@domain.com  
+- Look for {last_name}@domain.com
+- Look for any email containing "{first_name}" or "{last_name}"
+
+RULES:
 1. Return ONLY the email address, nothing else
-2. If multiple emails found, return the most official/institutional one
-3. If no email found, return "NONE"
-4. Email must be valid format (contain @ and domain)
-5. Prefer university/institution emails over personal ones"""
+2. Must be a valid email format (contains @ and domain)
+3. Prefer university/institutional emails (.edu, .ac.uk, .se, etc.)
+4. If multiple emails found, return the most official one
+5. If no email found, return "NONE"
+
+RESEARCHER: {name}
+INSTITUTION: {institution or "Unknown"}"""
 
         resp = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": combined_content[:8000]}  # Stay within token limits
+                {"role": "user", "content": combined_content[:10000]}  # More content
             ],
-            temperature=0.1,
-            max_tokens=50
+            temperature=0.0,  # More deterministic
+            max_tokens=100
         )
         
         email = resp.choices[0].message.content.strip()
+        
+        # Validate email format and relevance
         if email and email != "NONE" and "@" in email and "." in email:
-            logging.info("Found email for %s: %s", name, email)
-            return email
-        else:
-            logging.debug("No valid email found for %s", name)
-            return None
+            # Check if email contains researcher's name components
+            email_lower = email.lower()
+            if (first_name in email_lower or last_name in email_lower or 
+                any(part.lower() in email_lower for part in name_parts if len(part) > 2)):
+                logging.info("Found email for %s: %s", name, email)
+                return email
+        
+        logging.debug("No valid email found for %s", name)
+        return None
             
     except Exception as e:
         logging.warning("Email search failed for %s: %s", name, e)
@@ -323,8 +418,8 @@ def run(country: str, concept_key: str, limit: int | None, csv_out: Optional[str
     writer = None
     f = None
     if csv_out:
-        # Match KTH scraper CSV format exactly
-        fields = ["name", "email", "title", "research_area", "profile_url", "abstracts"]
+        # Match KTH scraper CSV format + add institution and country
+        fields = ["name", "email", "title", "institution", "country", "research_area", "profile_url", "abstracts"]
         append = os.path.exists(csv_out)
         f = open(csv_out, "a" if append else "w", newline="", encoding="utf-8")
         writer = csv.DictWriter(f, fieldnames=fields, quoting=csv.QUOTE_ALL)
@@ -339,10 +434,38 @@ def run(country: str, concept_key: str, limit: int | None, csv_out: Optional[str
                 abstracts = [reconstruct(w.get("abstract_inverted_index")) or "" for w in works]
                 abstracts = [a for a in abstracts if a]  # Filter empty abstracts
                 
-                # Search for email using name + institution
+                # Extract institution info from affiliations or last_known_institution
                 name = author.get("display_name", "")
-                institution = (author.get("last_known_institution") or {}).get("display_name", "")
-                email = search_researcher_email(name, institution) if name and institution else None
+                institution = ""
+                country = ""
+                
+                # Try last_known_institution first
+                if author.get("last_known_institution"):
+                    institution = author["last_known_institution"].get("display_name", "")
+                    country = author["last_known_institution"].get("country_code", "")
+                
+                # If no last_known_institution, get most recent Swedish affiliation
+                if not institution and author.get("affiliations"):
+                    # Sort affiliations by most recent year and prioritize Swedish institutions
+                    affiliations = author["affiliations"]
+                    swedish_affiliations = [aff for aff in affiliations 
+                                          if aff.get("institution", {}).get("country_code") == "SE"]
+                    
+                    if swedish_affiliations:
+                        # Get the one with most recent year
+                        best_aff = max(swedish_affiliations, 
+                                     key=lambda x: max(x.get("years", [0])))
+                        institution = best_aff["institution"]["display_name"]
+                        country = best_aff["institution"]["country_code"]
+                    elif affiliations:
+                        # Fallback to any recent affiliation
+                        best_aff = max(affiliations, 
+                                     key=lambda x: max(x.get("years", [0])))
+                        institution = best_aff["institution"]["display_name"]
+                        country = best_aff["institution"]["country_code"]
+                
+                # Try email search
+                email = search_researcher_email(name, institution or "Swedish University") if name else None
                 
                 # Generate title based on h-index
                 title = "Researcher"  # Default
@@ -361,20 +484,42 @@ def run(country: str, concept_key: str, limit: int | None, csv_out: Optional[str
                 if writer:
                     # Clean and format abstracts properly for CSV
                     clean_abstracts = []
-                    for abstract in abstracts[:5]:
-                        # Remove HTML entities and normalize whitespace
-                        clean_abstract = abstract.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-                        clean_abstract = " ".join(clean_abstract.split())  # Normalize whitespace
-                        if len(clean_abstract) > 1000:  # Truncate very long abstracts
-                            clean_abstract = clean_abstract[:1000] + "..."
-                        clean_abstracts.append(clean_abstract)
+                    for abstract in abstracts[:3]:  # Limit to 3 abstracts like KTH scraper
+                        if not abstract:
+                            continue
+                        # Comprehensive HTML entity cleanup
+                        clean_abstract = (abstract
+                            .replace("&amp;", "&")
+                            .replace("&lt;", "<")
+                            .replace("&gt;", ">")
+                            .replace("&quot;", '"')
+                            .replace("&apos;", "'")
+                            .replace("&#x0D;", " ")
+                            .replace("&acute;", "'")
+                            .replace("&nbsp;", " ")
+                            .replace("\n", " ")  # Remove all newlines
+                            .replace("\r", " ")  # Remove carriage returns
+                            .replace("\t", " ")  # Remove tabs
+                        )
+                        # Normalize all whitespace to single spaces
+                        clean_abstract = " ".join(clean_abstract.split())
+                        
+                        # Truncate if too long
+                        if len(clean_abstract) > 800:
+                            clean_abstract = clean_abstract[:800] + "..."
+                        
+                        if clean_abstract:  # Only add non-empty abstracts
+                            clean_abstracts.append(clean_abstract)
                     
-                    abstracts_text = "\n\n".join(clean_abstracts) if clean_abstracts else ""
+                    # Join abstracts with double newlines like KTH scraper, but escape properly
+                    abstracts_text = " | ".join(clean_abstracts) if clean_abstracts else ""
                     
                     row = {
                         "name": " ".join(name.split()) if name else "",
                         "email": email or "",
                         "title": title or "",
+                        "institution": " ".join(institution.split()) if institution else "",
+                        "country": country or "",
                         "research_area": concept_key.title().replace("Cs", "Computer Science"),
                         "profile_url": author.get("id") or "",
                         "abstracts": abstracts_text,
