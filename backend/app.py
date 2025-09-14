@@ -13,7 +13,8 @@ from user_info.paper_parsing import parse_paper_title_abstract as pp
 from user_info.cv_parsing import generate_research_intro as gs
 
 from utils.llm_manager import LLMManager
-from db.pg_client import get_conn
+from db.pg_client import get_conn, upsert_user
+import uuid
 
 app = FastAPI(title="PMatch API", version="0.1.0")
 
@@ -33,6 +34,7 @@ app.add_middleware(
 
 class LLMRequest(BaseModel):
     message: str = Field(..., min_length=1, description="Message to send to the LLM")
+    user_id: Optional[str] = Field(None, description="User ID to enable personalized matching")
 
 
 class LLMResponse(BaseModel):
@@ -49,6 +51,7 @@ class UploadResponse(BaseModel):
     detected_kind: Optional[str] = None
     result: Optional[dict] = None
     embedding: Optional[List[float]] = None
+    user_id: str
 
 
 class SearchRequest(BaseModel):
@@ -80,6 +83,9 @@ async def upload_pdf(file: UploadFile = File(...)) -> UploadResponse:
     if file.content_type != "application/pdf" and not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be a PDF")
 
+    # Generate unique user ID
+    user_id = str(uuid.uuid4())
+
     # Save upload to temporary PDF
     await file.seek(0)
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -101,13 +107,24 @@ async def upload_pdf(file: UploadFile = File(...)) -> UploadResponse:
             abstract = (parsed or {}).get("abstract", "")
             combined = f"\n\n".join([title, abstract]).strip()
 
-            # Write combined text to a temp file
+            # Embed with our embed-query helper
+            embedding = _embed_query(combined)
+
+            # Store user data in database
+            upsert_user(
+                id=user_id,
+                filename=file.filename or "unknown.pdf",
+                content_type=file.content_type or "application/pdf",
+                detected_kind=detected,
+                title=title,
+                content=combined,
+                embedding=embedding,
+            )
+
+            # Write combined text to a temp file for legacy compatibility
             with tempfile.NamedTemporaryFile(suffix=".txt", delete=False, mode="w", encoding="utf-8") as tf:
                 tf.write(combined)
                 txt_path = tf.name
-
-            # Embed with our embed-query helper
-            embedding = _embed_query(combined)
 
             return UploadResponse(
                 filename=file.filename,
@@ -121,6 +138,7 @@ async def upload_pdf(file: UploadFile = File(...)) -> UploadResponse:
                     "pages": n_pages,
                 },
                 embedding=embedding,
+                user_id=user_id,
             )
         else:
             # CV path: parse to text, then generate a ~5-sentence intro
@@ -128,11 +146,22 @@ async def upload_pdf(file: UploadFile = File(...)) -> UploadResponse:
             cv_text = pcv(pdf_path)
             intro = gs(cv_text)
 
+            embedding = _embed_query(intro)
+
+            # Store user data in database
+            upsert_user(
+                id=user_id,
+                filename=file.filename or "unknown.pdf",
+                content_type=file.content_type or "application/pdf",
+                detected_kind=detected,
+                title=file.filename or "CV",  # Use filename as title for CV
+                content=intro,
+                embedding=embedding,
+            )
+
             with tempfile.NamedTemporaryFile(suffix=".txt", delete=False, mode="w", encoding="utf-8") as tf:
                 tf.write(intro)
                 intro_path = tf.name
-
-            embedding = _embed_query(intro)
 
             return UploadResponse(
                 filename=file.filename,
@@ -145,6 +174,7 @@ async def upload_pdf(file: UploadFile = File(...)) -> UploadResponse:
                     "pages": n_pages,
                 },
                 embedding=embedding,
+                user_id=user_id,
             )
     finally:
         # Cleanup uploaded temp PDF (keep generated .txt for audit if needed)
@@ -158,8 +188,23 @@ async def upload_pdf(file: UploadFile = File(...)) -> UploadResponse:
 @api.post("/llm-chat", response_model=LLMResponse, summary="Chat with LLM")
 async def llm_chat(request: LLMRequest) -> LLMResponse:
     try:
-        llm_manager = LLMManager(get_conn())
-        llm_response = await llm_manager.chat_with_tools(request.message)
+        from db.pg_client import get_user_by_id
+        
+        # Get user context if user_id provided
+        user_context = None
+        if request.user_id:
+            user_data = get_user_by_id(request.user_id)
+            if user_data:
+                user_context = {
+                    "user_id": user_data["id"],
+                    "detected_kind": user_data["detected_kind"],
+                    "title": user_data["title"],
+                    "content": user_data["content"],
+                    "filename": user_data["filename"],
+                }
+
+        llm_manager = LLMManager()
+        llm_response = await llm_manager.chat_with_tools(request.message, user_context)
 
         return LLMResponse(
             message=request.message,
@@ -167,7 +212,8 @@ async def llm_chat(request: LLMRequest) -> LLMResponse:
             success=True,
             metadata={
                 "tools_used": llm_response.get("tools_used", []),
-                "tool_results": llm_response.get("tool_results", [])
+                "tool_results": llm_response.get("tool_results", []),
+                "user_context_loaded": user_context is not None
             }
         )
 
@@ -185,7 +231,7 @@ def _embed_query(text: str) -> List[float]:
     except Exception:
         raise HTTPException(status_code=500, detail="OpenAI client not installed")
     client = OpenAI()
-    resp = client.embeddings.create(model="text-embedding-3-large", input=[text])
+    resp = client.embeddings.create(model="text-embedding-3-small", input=[text])
     return resp.data[0].embedding  # type: ignore
 
 
