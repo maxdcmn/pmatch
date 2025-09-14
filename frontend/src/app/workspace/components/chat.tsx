@@ -61,12 +61,12 @@ export function Chat({ className, onContactDataUpdate }: ChatProps) {
         content: response.response,
         role: 'ai',
         timestamp: new Date(),
-        contactData: response.data?.contact,
+        contactData: response.metadata?.contact,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
-      if (response.data?.contact) {
-        onContactDataUpdate?.(response.data.contact);
+      if (response.metadata?.contact) {
+        onContactDataUpdate?.(response.metadata.contact);
       }
     } catch (error) {
       console.error('Chat API error:', error);
