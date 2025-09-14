@@ -12,7 +12,9 @@ export interface LLMResponse {
   message: string;
   response: string;
   success: boolean;
-  data?: {
+  metadata?: {
+    tools_used?: string[];
+    tool_results?: any[];
     contact?: {
       text: string;
       email: string;
