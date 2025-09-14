@@ -1,3 +1,5 @@
+-- Main database schema for pmatch
+
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Table to store KTH profiles and abstracts with averaged embedding
@@ -32,6 +34,29 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trg_profiles_updated ON profiles;
 CREATE TRIGGER trg_profiles_updated
 BEFORE UPDATE ON profiles
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Users table for uploaded CVs/papers
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  filename TEXT,
+  content_type TEXT,
+  detected_kind TEXT,  -- 'cv' or 'paper'
+  title TEXT,          -- paper title or CV name
+  content TEXT,        -- parsed text content
+  embedding vector(1536), -- embedding of the content
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Vector index for user similarity search
+CREATE INDEX IF NOT EXISTS users_embedding_ivfflat
+  ON users USING ivfflat (embedding vector_cosine_ops)
+  WITH (lists = 100);
+
+DROP TRIGGER IF EXISTS trg_users_updated ON users;
+CREATE TRIGGER trg_users_updated
+BEFORE UPDATE ON users
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 

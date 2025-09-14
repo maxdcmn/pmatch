@@ -30,22 +30,12 @@ def upsert_profile(
 ) -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
+            # Insert into profiles table with abstracts
             cur.execute(
                 """
-                INSERT INTO profiles (
-                  id, name, email, title, research_area, institution, country, profile_url, abstracts, embedding
-                )
+                INSERT INTO profiles (id, name, email, title, research_area, institution, country, profile_url, abstracts, embedding)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (id) DO UPDATE SET
-                  name = EXCLUDED.name,
-                  email = EXCLUDED.email,
-                  title = EXCLUDED.title,
-                  research_area = EXCLUDED.research_area,
-                  institution = EXCLUDED.institution,
-                  country = EXCLUDED.country,
-                  profile_url = EXCLUDED.profile_url,
-                  abstracts = EXCLUDED.abstracts,
-                  embedding = EXCLUDED.embedding
+                ON CONFLICT (profile_url) DO NOTHING
                 """,
                 (
                     id,
@@ -86,10 +76,65 @@ def search_profiles(query_embedding: List[float], top_k: int = 5) -> List[Dict]:
 def clear_null_profiles() -> None:
     with get_conn() as conn:
         with conn.cursor() as cur:
+            # Clear profiles with null or empty abstracts
             cur.execute(
                 "DELETE FROM profiles WHERE abstracts IS NULL OR abstracts = '{}'::text[]",
             )
             conn.commit()
+
+
+def upsert_user(
+    *,
+    id: str,
+    filename: str,
+    content_type: str,
+    detected_kind: str,
+    title: str,
+    content: str,
+    embedding: Optional[List[float]],
+) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO users (id, filename, content_type, detected_kind, title, content, embedding)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                  filename = EXCLUDED.filename,
+                  content_type = EXCLUDED.content_type,
+                  detected_kind = EXCLUDED.detected_kind,
+                  title = EXCLUDED.title,
+                  content = EXCLUDED.content,
+                  embedding = EXCLUDED.embedding,
+                  updated_at = NOW()
+                """,
+                (id, filename, content_type, detected_kind, title, content, embedding),
+            )
+
+
+def get_user_by_id(user_id: str) -> Optional[Dict]:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+            return cur.fetchone()
+
+
+def find_matching_researchers(user_embedding: List[float], top_k: int = 10) -> List[Dict]:
+    """Find researchers similar to user's CV/paper."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            vec_text = _vector_literal(user_embedding)
+            cur.execute(
+                """
+                SELECT *, 1 - (embedding <=> %s::vector) AS similarity_score
+                FROM profiles
+                WHERE embedding IS NOT NULL
+                ORDER BY embedding <-> %s::vector
+                LIMIT %s
+                """,
+                (vec_text, vec_text, top_k),
+            )
+            return cur.fetchall()
 
 
 def get_distinct_institutions() -> List[str]:
