@@ -12,7 +12,8 @@ from pypdf import PdfReader
 from user_info.paper_parsing import parse_paper_title_abstract as pp
 from user_info.cv_parsing import generate_research_intro as gs
 
-
+from utils.llm_manager import LLMManager
+from db.pg_client import get_conn
 
 app = FastAPI(title="PMatch API", version="0.1.0")
 
@@ -30,21 +31,6 @@ app.add_middleware(
 )
 
 
-class ItemCreate(BaseModel):
-    """Request model for creating an item (placeholder)."""
-
-    name: str = Field(..., min_length=1, max_length=100)
-    description: str | None = Field(None, max_length=1000)
-
-
-class ItemRead(BaseModel):
-    """Response model for an item (placeholder)."""
-
-    id: int
-    name: str
-    description: str | None = None
-
-
 class LLMRequest(BaseModel):
     message: str = Field(..., min_length=1, description="Message to send to the LLM")
 
@@ -53,7 +39,7 @@ class LLMResponse(BaseModel):
     message: str = Field(..., description="Your original message to the LLM")
     response: str = Field(..., description="LLM's response to your message")
     success: bool = True
-    data: Optional[dict] = None
+    metadata: Optional[dict] = None
 
 
 class UploadResponse(BaseModel):
@@ -170,23 +156,28 @@ async def upload_pdf(file: UploadFile = File(...)) -> UploadResponse:
 
 
 @api.post("/llm-chat", response_model=LLMResponse, summary="Chat with LLM")
-def llm_chat(request: LLMRequest) -> LLMResponse:
-    llm_response = "This is a placeholder."
-    
-    return LLMResponse(
-        message=request.message,
-        response=llm_response,
-        success=True,
-        data={"contact": {
-            "text": "Dear Mr. Doe, I'm Max. I'm reaching out to you because I'm interested in your work.",
-            "email": "max@pmatch.com",
-            "subject": "Collaboration proposal",
+async def llm_chat(request: LLMRequest) -> LLMResponse:
+    try:
+        llm_manager = LLMManager(get_conn())
+        llm_response = await llm_manager.chat_with_tools(request.message)
+
+        return LLMResponse(
+            message=request.message,
+            response=llm_response["response"],
+            success=True,
+            metadata={
+                "tools_used": llm_response.get("tools_used", []),
+                "tool_results": llm_response.get("tool_results", [])
             }
-        }
-    )
+        )
 
+    except Exception as e:
+        return LLMResponse(
+            message=request.message,
+            response=f"Error: {str(e)}",
+            success=False
+        )
 
-# ---- Retrieval over Postgres (pgvector) ----
 
 def _embed_query(text: str) -> List[float]:
     try:

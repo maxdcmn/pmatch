@@ -22,6 +22,8 @@ def upsert_profile(
     email: str,
     title: str,
     research_area: str,
+    institution: str,
+    country: str,
     profile_url: str,
     abstracts: List[str],
     embedding: Optional[List[float]],
@@ -30,13 +32,17 @@ def upsert_profile(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO profiles (id, name, email, title, research_area, profile_url, abstracts, embedding)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO profiles (
+                  id, name, email, title, research_area, institution, country, profile_url, abstracts, embedding
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id) DO UPDATE SET
                   name = EXCLUDED.name,
                   email = EXCLUDED.email,
                   title = EXCLUDED.title,
                   research_area = EXCLUDED.research_area,
+                  institution = EXCLUDED.institution,
+                  country = EXCLUDED.country,
                   profile_url = EXCLUDED.profile_url,
                   abstracts = EXCLUDED.abstracts,
                   embedding = EXCLUDED.embedding
@@ -47,6 +53,8 @@ def upsert_profile(
                     email,
                     title,
                     research_area,
+                    institution,
+                    country,
                     profile_url,
                     abstracts,
                     embedding,
@@ -82,3 +90,20 @@ def clear_null_profiles() -> None:
                 "DELETE FROM profiles WHERE abstracts IS NULL OR abstracts = '{}'::text[]",
             )
             conn.commit()
+
+
+def get_distinct_institutions() -> List[str]:
+    """Return distinct non-empty institution names from profiles."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT institution
+                FROM profiles
+                WHERE institution IS NOT NULL AND institution <> ''
+                ORDER BY institution
+                """
+            )
+            rows = cur.fetchall()
+            # rows are dict_row objects like {'institution': 'KTH'}
+            return [str(r["institution"]) for r in rows if r.get("institution")]

@@ -73,6 +73,8 @@ def main() -> None:
             email=row.get("email") or "",
             title=row.get("title") or "",
             research_area=row.get("research_area") or "",
+            institution=row.get("institution") or "",
+            country=row.get("country") or "",
             profile_url=row.get("profile_url") or "",
             abstracts=abstracts,  # stored as text[]
             embedding=emb,
