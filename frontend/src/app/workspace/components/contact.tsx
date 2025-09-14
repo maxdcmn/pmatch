@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Save, Check, X } from 'lucide-react';
+import { ExternalLink, Save, Check, X, Sparkles } from 'lucide-react';
 import InlineDiffResolver from '@/app/workspace/components/inline-diff-resolver';
+import { api, Contact as ApiContact } from '@/lib/api';
 
 type ContactData = {
   text: string;
@@ -15,13 +16,16 @@ type ContactProps = {
   className?: string;
   incomingContactData?: ContactData | null;
   onContactDataUpdate?: (data: ContactData) => void;
+  userId?: string | null;
+  availableContacts?: ApiContact[];
 };
 
-export function Contact({ className, incomingContactData, onContactDataUpdate }: ContactProps) {
+export function Contact({ className, incomingContactData, onContactDataUpdate, userId, availableContacts }: ContactProps) {
   const [recipient, setRecipient] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [pendingChanges, setPendingChanges] = useState<ContactData | null>(null);
+  const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
   type FieldStatus = 'unchanged' | 'pending' | 'applied' | 'dismissed';
   const [status, setStatus] = useState<{
     email: FieldStatus;
@@ -39,7 +43,7 @@ export function Contact({ className, incomingContactData, onContactDataUpdate }:
         text: body !== incomingContactData.text ? 'pending' : 'unchanged',
       });
     }
-  }, [incomingContactData]);
+  }, [incomingContactData, recipient, subject, body]);
 
   const resolveIfDone = (nextStatus: {
     email: FieldStatus;
@@ -62,6 +66,41 @@ export function Contact({ className, incomingContactData, onContactDataUpdate }:
 
   const handleSaveToTemplates = () => {
     console.log('Saving to templates:', { recipient, subject, body });
+  };
+
+  const handleGenerateEmail = async () => {
+    if (!userId || !availableContacts || availableContacts.length === 0) {
+      console.error('Missing userId or contacts for email generation');
+      return;
+    }
+
+    setIsGeneratingEmail(true);
+    try {
+      const response = await api.generateEmail({
+        user_id: userId,
+        contacts: availableContacts,
+        email_type: 'research_position_inquiry'
+      });
+
+      // Use the auto-complete system to suggest the generated email
+      const generatedContactData: ContactData = {
+        email: availableContacts.map(c => c.email).join(', '),
+        subject: response.subject,
+        text: response.body
+      };
+
+      setPendingChanges(generatedContactData);
+      setStatus({
+        email: recipient !== generatedContactData.email ? 'pending' : 'unchanged',
+        subject: subject !== generatedContactData.subject ? 'pending' : 'unchanged',
+        text: body !== generatedContactData.text ? 'pending' : 'unchanged',
+      });
+
+    } catch (error) {
+      console.error('Failed to generate email:', error);
+    } finally {
+      setIsGeneratingEmail(false);
+    }
   };
 
   // Global accept/decline controls
@@ -239,6 +278,26 @@ export function Contact({ className, incomingContactData, onContactDataUpdate }:
 
             <div className="relative h-14">
               <div className="absolute right-2 bottom-2 flex items-center gap-2">
+                {userId && availableContacts && availableContacts.length > 0 && (
+                  <button
+                    onClick={handleGenerateEmail}
+                    disabled={isGeneratingEmail}
+                    className={cn(
+                      'group flex cursor-pointer items-center gap-0 hover:gap-2',
+                      'bg-emerald-600 text-white',
+                      'hover:bg-emerald-700 transition-all duration-300 ease-out',
+                      'text-sm font-medium',
+                      'px-2.5 py-2 hover:px-4 hover:py-2',
+                      'disabled:opacity-50 disabled:cursor-not-allowed',
+                    )}
+                  >
+                    <Sparkles size={16} className={cn('flex-shrink-0', isGeneratingEmail && 'animate-spin')} />
+                    <span className="max-w-0 overflow-hidden whitespace-nowrap transition-all duration-300 ease-out group-hover:max-w-[120px]">
+                      {isGeneratingEmail ? 'Generating...' : 'Generate Email'}
+                    </span>
+                  </button>
+                )}
+
                 <button
                   onClick={handleSaveToTemplates}
                   className={cn(

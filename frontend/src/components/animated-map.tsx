@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
 import type { Map } from 'leaflet';
 type LeafletModule = typeof import('leaflet');
 
 export function AnimatedMap() {
   const { resolvedTheme } = useTheme();
+  const [isMounted, setIsMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const tileLayerRef = useRef<ReturnType<LeafletModule['tileLayer']> | null>(null);
@@ -14,9 +15,13 @@ export function AnimatedMap() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
     let canceled = false;
     (async () => {
-      if (typeof window === 'undefined') return;
+      if (typeof window === 'undefined' || !isMounted) return;
       const imported = (await import('leaflet')) as unknown as {
         default?: LeafletModule;
       } & LeafletModule;
@@ -95,7 +100,7 @@ export function AnimatedMap() {
       tileLayerRef.current = null;
       LRef.current = null;
     };
-  }, []);
+  }, [isMounted, resolvedTheme]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -120,6 +125,14 @@ export function AnimatedMap() {
       }
     } catch {}
   }, [resolvedTheme]);
+  if (!isMounted) {
+    return (
+      <div className="absolute inset-0">
+        <div className="pointer-events-none h-full w-full overflow-hidden select-none bg-muted/20" />
+      </div>
+    );
+  }
+
   return (
     <div className="absolute inset-0">
       <div

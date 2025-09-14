@@ -75,6 +75,21 @@ class ResearcherMatchTool:
             if not user_data.get("embedding"):
                 return {"error": "no_embedding", "message": "User has no embedding - upload a CV or paper first"}
 
+            # Debug embedding data
+            embedding_data = user_data["embedding"]
+            logger.info(f"User embedding type: {type(embedding_data)}")
+            logger.info(f"User embedding sample: {str(embedding_data)[:100]}...")
+            
+            # Convert embedding if it's stored as string
+            if isinstance(embedding_data, str):
+                import json
+                try:
+                    embedding_data = json.loads(embedding_data)
+                    logger.info(f"Converted embedding from string, new type: {type(embedding_data)}")
+                except Exception as e:
+                    logger.error(f"Failed to parse embedding string: {e}")
+                    return {"error": "embedding_parse_failed", "message": f"Failed to parse user embedding: {e}"}
+
             # Filter by institution if specified
             inst_norm = institution.strip() if isinstance(institution, str) else None
             if inst_norm:
@@ -85,7 +100,7 @@ class ResearcherMatchTool:
                 inst_norm = lower_map[inst_norm.lower()]
 
             # Find matching researchers
-            rows = find_matching_researchers(user_data["embedding"], top_k=top_k)
+            rows = find_matching_researchers(embedding_data, top_k=top_k)
             results: List[Dict[str, Any]] = []
             for r in rows:
                 if inst_norm and (r.get("institution") or "") != inst_norm:
