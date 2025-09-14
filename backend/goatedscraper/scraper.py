@@ -511,8 +511,8 @@ def run(country: str, concept_key: str, limit: int | None, csv_out: Optional[str
                         if clean_abstract:  # Only add non-empty abstracts
                             clean_abstracts.append(clean_abstract)
                     
-                    # Join abstracts with double newlines like KTH scraper, but escape properly
-                    abstracts_text = " | ".join(clean_abstracts) if clean_abstracts else ""
+                    # Format abstracts as JSON list for consistency
+                    abstracts_text = json.dumps(clean_abstracts, ensure_ascii=False) if clean_abstracts else "[]"
                     
                     row = {
                         "name": " ".join(name.split()) if name else "",
