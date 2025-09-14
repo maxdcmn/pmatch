@@ -4,6 +4,19 @@ import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Send } from 'lucide-react';
 import { api, LLMResponse } from '@/lib/api';
+import ReactMarkdown from 'react-markdown';
+
+type Contact = {
+  email: string;
+  name: string;
+  institution?: string;
+  country?: string;
+  title?: string;
+  research_area?: string;
+  profile_url?: string;
+  abstracts?: string[];
+  similarity_score?: number;
+};
 
 type Message = {
   id: string;
@@ -11,6 +24,7 @@ type Message = {
   role: 'user' | 'ai';
   timestamp: Date;
   error?: boolean;
+  contacts?: Contact[];
   contactData?: {
     text: string;
     email: string;
@@ -20,10 +34,11 @@ type Message = {
 
 type ChatProps = {
   className?: string;
-  onContactDataUpdate?: (data: { text: string; email: string; subject: string }) => void;
+  onContactDataUpdate?: (data: { text: string; email: string; subject: string }, contacts?: Contact[]) => void;
+  userId?: string | null;
 };
 
-export function Chat({ className, onContactDataUpdate }: ChatProps) {
+export function Chat({ className, onContactDataUpdate, userId }: ChatProps) {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -54,17 +69,31 @@ export function Chat({ className, onContactDataUpdate }: ChatProps) {
     setIsLoading(true);
 
     try {
-      const response: LLMResponse = await api.chatWithLLM(currentMessage);
+      const response: LLMResponse = await api.chatWithLLM(currentMessage, userId || undefined);
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: response.response,
         role: 'ai',
         timestamp: new Date(),
+        contacts: response.contacts,
         contactData: response.metadata?.contact,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+      
+      // Handle contacts - send to contact form
+      if (response.contacts && response.contacts.length > 0) {
+        const contactEmails = response.contacts.map(c => c.email).join(', ');
+        const contactNames = response.contacts.map(c => c.name).join(', ');
+        
+        onContactDataUpdate?.({
+          text: `Found ${response.contacts.length} researcher(s): ${contactNames}`,
+          email: contactEmails,
+          subject: `Research Collaboration Inquiry - ${response.contacts[0]?.research_area || 'Academic Collaboration'}`
+        }, response.contacts);
+      }
+
       if (response.metadata?.contact) {
         onContactDataUpdate?.(response.metadata.contact);
       }
@@ -106,15 +135,39 @@ export function Chat({ className, onContactDataUpdate }: ChatProps) {
                     >
                       <div
                         className={cn(
-                          'max-w-[80%] px-3 py-2 text-sm break-words',
+                          'max-w-[80%] px-3 py-2 text-sm break-words rounded-lg',
                           msg.role === 'user'
-                            ? 'bg-primary text-primary-foreground ml-auto'
+                            ? 'bg-primary text-primary-foreground ml-auto rounded-br-sm'
                             : msg.error
-                              ? 'bg-destructive/10 text-destructive'
-                              : 'bg-muted text-foreground',
+                              ? 'bg-destructive/10 text-destructive rounded-bl-sm'
+                              : 'bg-muted text-foreground rounded-bl-sm',
                         )}
                       >
-                        <div>{msg.content}</div>
+                        {msg.role === 'ai' ? (
+                          <div className="prose prose-sm max-w-none prose-headings:font-semibold prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-ul:text-foreground prose-ol:text-foreground prose-li:text-foreground prose-blockquote:text-muted-foreground prose-blockquote:border-l-border">
+                            <ReactMarkdown 
+                              components={{
+                                h1: (props) => <h1 className="text-lg font-semibold mb-2 text-foreground" {...props} />,
+                                h2: (props) => <h2 className="text-base font-semibold mb-2 text-foreground" {...props} />,
+                                h3: (props) => <h3 className="text-sm font-semibold mb-1 text-foreground" {...props} />,
+                                p: (props) => <p className="mb-2 last:mb-0 text-foreground" {...props} />,
+                                ul: (props) => <ul className="mb-2 ml-4 space-y-1 text-foreground" {...props} />,
+                                ol: (props) => <ol className="mb-2 ml-4 space-y-1 text-foreground" {...props} />,
+                                li: (props) => <li className="text-foreground" {...props} />,
+                                strong: (props) => <strong className="font-semibold text-foreground" {...props} />,
+                                em: (props) => <em className="italic text-foreground" {...props} />,
+                                blockquote: (props) => <blockquote className="border-l-2 border-border pl-3 text-muted-foreground italic" {...props} />,
+                                code: (props) => (
+                                  <code className="bg-muted px-1 py-0.5 rounded text-sm font-mono text-foreground" {...props} />
+                                ),
+                              }}
+                            >
+                              {msg.content}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <div>{msg.content}</div>
+                        )}
                         {msg.contactData && (
                           <div className="text-muted-foreground mt-1 text-[11px] italic">
                             Changed contact

@@ -7,6 +7,7 @@ import { api, UploadResponse } from '@/lib/api';
 
 type DataDropProps = {
   className?: string;
+  onUploadSuccess?: (userId: string) => void;
 };
 
 type DroppedFile = {
@@ -19,7 +20,7 @@ type DroppedFile = {
   error?: string;
 };
 
-export function DataDrop({ className }: DataDropProps) {
+export function DataDrop({ className, onUploadSuccess }: DataDropProps) {
   const [files, setFiles] = useState<DroppedFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -64,6 +65,11 @@ export function DataDrop({ className }: DataDropProps) {
             : f,
         ),
       );
+      
+      // Call the success callback with the user ID
+      if (onUploadSuccess && response.user_id) {
+        onUploadSuccess(response.user_id);
+      }
     } catch (error) {
       setFiles((prev) =>
         prev.map((f, i) =>

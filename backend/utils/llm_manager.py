@@ -8,11 +8,14 @@ Environment:
 from __future__ import annotations
 
 import os
+import logging
 from openai import OpenAI
 from typing import List, Dict, Any
 import json
 from db.pg_client import get_conn
 from utils.llm_tools import ResearcherMatchTool
+
+logger = logging.getLogger(__name__)
 
 EXTRACTION_SYSTEM_PROMPT = (
     "You are an information extraction agent. Given raw HTML or visible text of a "
@@ -30,26 +33,47 @@ LINK_SELECTION_SYSTEM_PROMPT = (
 )
 
 CHAT_SYSTEM_PROMPT = (
-    "You are an expert research matching assistant. You have access to a database of researchers and can:"
-    "- Search for researchers using semantic similarity based on natural language queries"
-    "- Find personalized matches for users based on their uploaded CV or research paper"
-    "- Analyze compatibility between users and researchers"
-    "- Generate personalized outreach messages and collaboration strategies"
-    "- Filter results by institution when needed"
+    "You are an expert research collaboration assistant. Your mission is to help researchers find the perfect collaboration partners and craft compelling outreach messages.\n\n"
     
-    "AVAILABLE TOOLS:"
-    "- find_matches_for_user: PRIMARY TOOL for personalized matching when user has uploaded a CV/paper"
-    "- get_top_matches: For general research queries when no user context is available"
+    "CORE CAPABILITIES:\n"
+    "- Find researchers using semantic similarity and uploaded CVs/papers"
+    "- Generate personalized outreach emails focused on scientific niche matching"
+    "- Analyze research compatibility and suggest collaboration opportunities"
+    "- Refine emails iteratively through conversation"
+    
+    "AVAILABLE TOOLS:\n"
+    "- get_top_matches: Find researchers by research interests or keywords"
     "- list_institutions: Show available institutions for filtering"
+    "- generate_email: Create personalized outreach emails"
+    "- refine_email: Improve existing emails based on feedback"
     
     "WORKFLOW:"
-    "1. If user has uploaded a CV/paper (user_id provided), use find_matches_for_user for best results"
-    "2. For general queries without user context, use get_top_matches"
-    "3. Always provide detailed analysis of matches including similarity scores and next steps"
-    "4. Suggest specific outreach strategies for top matches"
+    "1. Use uploaded CV/paper context to find the most relevant researchers"
+    "2. Generate personalized outreach emails highlighting scientific niche matches"
+    "3. Focus on recent papers, methodology alignment, and concrete collaboration opportunities"
+    "4. Refine emails through conversational feedback"
     
-    "Your goal is to find the most compatible researchers and provide actionable advice for collaboration."
+    "EMAIL REFINEMENT:"
+    "When users ask to refine emails, you MUST:"
+    "1. Use the refine_email tool to generate a completely new version"
+    "2. Include the new email in this exact format:"
+    "---"
+    "**Current Contact Proposal:**"
+    "- **To:** [email]"
+    "- **Subject:** [subject]"
+    "- **Message:**"
+    "[complete new email body]"
+    "*This is the current state of your outreach email. You can ask me to modify it further.*"
+    
+    "SUCCESS METRICS:"
+    "- Find researchers with high research compatibility"
+    "- Generate emails that reference specific recent papers"
+    "- Suggest concrete collaboration opportunities"
+    "- Make scientific niche matching the central focus"
+    
+    "Always be specific, scientific, and actionable in your recommendations."
 )
+
 
 def _has_key() -> bool:
     return bool(os.getenv("OPENAI_API_KEY"))
@@ -107,6 +131,8 @@ class LLMManager:
         }
     
     async def chat_with_tools(self, message: str, user_context: Dict = None) -> Dict:    
+        logger.info(f"Chat with tools: message='{message}', has_user_context={user_context is not None}")
+        
         messages = [
             {
                 "role": "system", 
@@ -116,6 +142,7 @@ class LLMManager:
         ]
         
         if user_context:
+            logger.info(f"Adding user context: {user_context.get('detected_kind')} - {user_context.get('title')}")
             messages.insert(-1, {
                 "role": "system",
                 "content": f"User context: {json.dumps(user_context, indent=2)}"
@@ -126,6 +153,8 @@ class LLMManager:
             for t in self.tools.values()
             for s in (t.function_schemas() if hasattr(t, "function_schemas") else [])
         ]
+        
+        logger.info(f"Available tools: {[s['name'] for s in tool_schemas]}")
 
         response = self.client.chat.completions.create(
             model="gpt-4o",
@@ -134,6 +163,8 @@ class LLMManager:
             tool_choice="auto",
             temperature=0,
         )
+        
+        logger.info(f"OpenAI response received, has tool_calls: {bool(response.choices[0].message.tool_calls)}")
         
         if response.choices[0].message.tool_calls:
             return await self._handle_tool_calls(response, messages)

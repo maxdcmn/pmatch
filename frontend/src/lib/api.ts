@@ -4,17 +4,32 @@ if (typeof window !== 'undefined') {
   console.log('API Base URL:', API_BASE_URL);
 }
 
+export interface Contact {
+  email: string;
+  name: string;
+  institution?: string;
+  country?: string;
+  title?: string;
+  research_area?: string;
+  profile_url?: string;
+  abstracts?: string[];
+  similarity_score?: number;
+}
+
 export interface LLMRequest {
   message: string;
+  user_id?: string;
 }
 
 export interface LLMResponse {
   message: string;
   response: string;
   success: boolean;
+  contacts?: Contact[];
   metadata?: {
     tools_used?: string[];
-    tool_results?: any[];
+    tool_results?: unknown[];
+    user_context_loaded?: boolean;
     contact?: {
       text: string;
       email: string;
@@ -28,6 +43,20 @@ export interface UploadResponse {
   filename: string;
   content_type: string;
   message: string;
+  user_id: string;
+}
+
+export interface EmailGenerationRequest {
+  user_id: string;
+  contacts: Contact[];
+  email_type?: string;
+}
+
+export interface EmailGenerationResponse {
+  subject: string;
+  body: string;
+  personalization_notes: string[];
+  success: boolean;
 }
 
 export interface ApiError {
@@ -101,12 +130,16 @@ class ApiClient {
 const apiClient = new ApiClient(API_BASE_URL);
 
 export const api = {
-  async chatWithLLM(message: string): Promise<LLMResponse> {
-    return apiClient.post<LLMResponse>('/api/llm-chat', { message });
+  async chatWithLLM(message: string, user_id?: string): Promise<LLMResponse> {
+    return apiClient.post<LLMResponse>('/api/llm-chat', { message, user_id });
   },
 
   async uploadPDF(file: File): Promise<UploadResponse> {
     return apiClient.uploadFile<UploadResponse>('/api/upload-pdf', file);
+  },
+
+  async generateEmail(request: EmailGenerationRequest): Promise<EmailGenerationResponse> {
+    return apiClient.post<EmailGenerationResponse>('/api/generate-email', request);
   },
 
   async healthCheck(): Promise<{ status: string; version: string }> {
