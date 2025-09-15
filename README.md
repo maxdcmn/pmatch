@@ -42,11 +42,11 @@ This is where **Pmatch** comes in. You don't have to find emails of people withi
 ---
 
 ## Contributors
-
-**Max**: Fullstack, API, Agentic - *Python, Next.js*  
-**Jonas**: Data & Backend, CV Ingestion - *Scraping, Analytics, Python, SQL*  
-**Niklavs**: Data & Backend, Retrieval - *Scraping, Database, Python, SQL*
-
+## 👥 Contributors
+- [NikVis01](https://github.com/NikVis01)
+- [ltumat](https://github.com/ltumat)
+- [maxdcmn](https://github.com/maxdcmn)
+- 
 ### Common stack & external APIs:
 - **PostgreSQL** (with pgvector)
 - **Tavely** 
