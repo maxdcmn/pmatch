@@ -38,6 +38,7 @@ Open http://localhost:3000
 
 ### Database (PostgreSQL + pgvector)
 
+
 #### Tables
 
 **`profiles`** - Researcher data
@@ -171,7 +172,7 @@ python app.py
 python goatedscraper/scraper.py
 
 # Upsert to database
-python db/upload_to_pg.py
+python db/upload_to_pg.py # This may take a while, we're not infra devs
 ```
 Note: scraper/ subdir currently unused
 
