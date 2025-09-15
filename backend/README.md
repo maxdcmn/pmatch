@@ -37,7 +37,7 @@ Open http://localhost:3000
 - **Components**: Modern workspace interface with chat and file upload
 
 ### Database (PostgreSQL + pgvector)
-
+![Database Screenshot](https://github.com/maxdcmn/pmatch/blob/main/assets/gen.png?raw=true)
 
 #### Tables
 
