@@ -48,10 +48,12 @@ This is where **Pmatch** comes in. You don't have to find emails of people withi
 - **Tavely** 
 - **OpenALEX**
 
-## Dashboard
 
+## Dashboard
+![Dashboard Screenshot](https://github.com/maxdcmn/pmatch/blob/main/assets/gen.png?raw=true)
 
 ## Demo Video
+[![Watch the video](https://github.com/maxdcmn/pmatch/blob/main/assets/thumb.png?raw=true)](https://github.com/maxdcmn/pmatch/blob/main/assets/demo.mp4?raw=true)
 
 
 ## Honorable Mentions s/o's
