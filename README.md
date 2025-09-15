@@ -2,6 +2,10 @@
 ![License](https://img.shields.io/github/license/maxdcmn/pmatch)
 ![Status](https://img.shields.io/badge/status-WIP-green )
 
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+
 ### Find your next PhD or thesis opportunity via cold outreach
 
 > **Built in shy of 48 hours** at the Legora x OpenAI hackathon in Stockholm  
@@ -29,13 +33,6 @@ This is where **Pmatch** comes in. You don't have to find emails of people withi
 - **Similarity Matching**: Cosine distance-based semantic researcher matching
 - **API**: FastAPI with async processing for document upload and matching
 - **Email Generation**: GPT-4o powered personalized outreach messages
-
----
-
-## 🛠 Top Languages
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
-![SQL](https://img.shields.io/badge/Jupyter-F37626?logo=sql&logoColor=white) 
 
 ---
 
