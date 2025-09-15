@@ -52,7 +52,10 @@ This is where **Pmatch** comes in. You don't have to find emails of people withi
 ![Dashboard Screenshot](https://github.com/maxdcmn/pmatch/blob/main/assets/gen.png?raw=true)
 
 ## Demo Video
-[![Watch the video](https://github.com/maxdcmn/pmatch/blob/main/assets/thumb.png?raw=true)](https://github.com/maxdcmn/pmatch/blob/main/assets/demo.mp4?raw=true)
+<video width="100%" controls>
+  <source src="https://github.com/maxdcmn/pmatch/blob/main/assets/demo.mp4?raw=true" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 ## Honorable Mentions s/o's
 ### Álvaro Mazcuñán Herreros **Tech Lead and ML Engineer at KTH AI Society**
