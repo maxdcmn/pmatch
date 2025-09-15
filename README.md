@@ -1,4 +1,4 @@
-# PMATCH
+# pmatch : finding your next PhD or Thesis contact with AI
 ![License](https://img.shields.io/github/license/maxdcmn/pmatch)
 ![Status](https://img.shields.io/badge/status-WIP-green )
 
