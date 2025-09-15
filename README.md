@@ -35,7 +35,7 @@ This is where **Pmatch** comes in. You don't have to find emails of people withi
 ## 🛠 Top Languages
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
-![Jupyter](https://img.shields.io/badge/Jupyter-F37626?logo=jupyter&logoColor=white
+![SQL](https://img.shields.io/badge/Jupyter-F37626?logo=sql&logoColor=white) 
 
 ---
 
