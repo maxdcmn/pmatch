@@ -132,21 +132,20 @@ updated_at TIMESTAMP
 - **Institution Filtering**: Optional filtering by research institution
 
 ### Web Scraper
-**Location**: `backend/scraper/`
+**Location**: `backend/goatedscraper/`
 - **Target**: KTH researcher directory
 - **Data Collected**:
   - Basic info: name, email, title, research area
   - Publication abstracts (up to 3 per researcher)
   - Institution and country information
 - **Process**:
-  1. Scrapes main directory page
-  2. Visits individual researcher profiles
+  1. Gets data from OpenAlex API
+  2. Visits individual researcher profiles and finds their institution emails with Tavely.
   3. Extracts publication links and abstracts
   4. Generates embeddings for similarity search
 - **Output**: CSV format ready for database import
 
 ## Development
-
 
 ## Environment Variables
 
