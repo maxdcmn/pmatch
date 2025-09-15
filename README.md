@@ -1,6 +1,7 @@
 # PMATCH
-https://img.shields.io/badge/status-WIP-green 
-https://img.shields.io/badge/KTH AI Society-https://kthais.com/-blue
+![License](https://img.shields.io/github/license/maxdcmn/pmatch)
+![Languages](https://img.shields.io/github/languages/top/maxdcmn/pmatch)
+![Status](https://img.shields.io/badge/status-WIP-green )
 
 ### Find your next PhD or thesis opportunity via cold outreach
 
