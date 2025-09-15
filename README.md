@@ -1,4 +1,7 @@
 # PMATCH
+https://img.shields.io/badge/status-WIP-green 
+https://img.shields.io/badge/KTH AI Society-https://kthais.com/-blue
+
 ### Find your next PhD or thesis opportunity via cold outreach
 
 > **Built in shy of 48 hours** at the Legora x OpenAI hackathon in Stockholm  
