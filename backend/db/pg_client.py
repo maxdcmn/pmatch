@@ -78,7 +78,7 @@ def clear_null_profiles() -> None:
         with conn.cursor() as cur:
             # Clear profiles with null or empty abstracts
             cur.execute(
-                "DELETE FROM profiles WHERE abstracts IS NULL OR abstracts = '{}'::text[]",
+                "DELETE FROM profiles WHERE abstracts IS NULL OR abstracts = '{}'::text[] OR email IS NULL OR email = ''",
             )
             conn.commit()
 
