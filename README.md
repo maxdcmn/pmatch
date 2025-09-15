@@ -147,6 +147,18 @@ updated_at TIMESTAMP
 
 ## Development
 
+### Database Management
+```bash
+# Start PostgreSQL with pgvector
+docker-compose up -d
+
+# Connect to database
+docker exec -it pmatch_pg psql -U pmatch -d pmatch # this might be done by the docker compose idk
+
+# Run migrations
+psql -U pmatch -d pmatch -f postgres/init/001_init.sql
+```
+
 ### Backend Development
 ```bash
 cd backend
@@ -158,9 +170,12 @@ pip install -r requirements.txt
 python app.py
 
 # Run scraper
-cd scraper
-python web_scraper.py
+python goatedscraper/scraper.py
+
+# Upsert to database
+python db/upload_to_pg.py
 ```
+Note: scraper/ subdir currently unused
 
 ### Frontend Development
 ```bash
@@ -174,18 +189,6 @@ npm run dev
 
 # Build for production
 npm run build
-```
-
-### Database Management
-```bash
-# Start PostgreSQL with pgvector
-docker-compose up -d
-
-# Connect to database
-docker exec -it pmatch_pg psql -U pmatch -d pmatch
-
-# Run migrations
-psql -U pmatch -d pmatch -f postgres/init/001_init.sql
 ```
 
 ## Environment Variables
