@@ -147,6 +147,19 @@ updated_at TIMESTAMP
 
 ## Development
 
+
+## Environment Variables
+
+### Backend (.env)
+```bash
+OPENAI_API_KEY=your_openai_api_key
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=pmatch
+POSTGRES_USER=pmatch
+POSTGRES_PASSWORD=pmatch
+```
+
 ### Database Management
 ```bash
 # Start PostgreSQL with pgvector
@@ -189,18 +202,6 @@ npm run dev
 
 # Build for production
 npm run build
-```
-
-## Environment Variables
-
-### Backend (.env)
-```bash
-OPENAI_API_KEY=your_openai_api_key
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=pmatch
-POSTGRES_USER=pmatch
-POSTGRES_PASSWORD=pmatch
 ```
 
 ### Frontend
