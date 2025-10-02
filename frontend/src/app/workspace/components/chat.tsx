@@ -135,12 +135,12 @@ export function Chat({ className, onContactDataUpdate, userId }: ChatProps) {
                     >
                       <div
                         className={cn(
-                          'max-w-[80%] px-3 py-2 text-sm break-words rounded-lg',
+                          'max-w-[80%] px-3 py-2 text-sm break-words',
                           msg.role === 'user'
-                            ? 'bg-primary text-primary-foreground ml-auto rounded-br-sm'
+                            ? 'bg-primary text-primary-foreground ml-auto'
                             : msg.error
-                              ? 'bg-destructive/10 text-destructive rounded-bl-sm'
-                              : 'bg-muted text-foreground rounded-bl-sm',
+                              ? 'bg-destructive/10 text-destructive'
+                              : 'bg-muted text-foreground',
                         )}
                       >
                         {msg.role === 'ai' ? (
@@ -158,7 +158,7 @@ export function Chat({ className, onContactDataUpdate, userId }: ChatProps) {
                                 em: (props) => <em className="italic text-foreground" {...props} />,
                                 blockquote: (props) => <blockquote className="border-l-2 border-border pl-3 text-muted-foreground italic" {...props} />,
                                 code: (props) => (
-                                  <code className="bg-muted px-1 py-0.5 rounded text-sm font-mono text-foreground" {...props} />
+                                  <code className="bg-muted px-1 py-0.5 text-sm font-mono text-foreground" {...props} />
                                 ),
                               }}
                             >

@@ -176,13 +176,13 @@ export function DataDrop({ className, onUploadSuccess }: DataDropProps) {
                           <p className="text-muted-foreground text-xs">
                             {formatBytes(f.size)}
                             {f.status === 'success' && f.uploadResponse && (
-                              <span className="ml-2 text-green-600">• Uploaded</span>
+                              <span className="ml-2 text-green-600">Uploaded</span>
                             )}
                             {f.status === 'error' && (
-                              <span className="ml-2 text-red-600">• {f.error}</span>
+                              <span className="ml-2 text-red-600">{f.error}</span>
                             )}
                             {f.status === 'uploading' && (
-                              <span className="ml-2 text-blue-600">• Uploading...</span>
+                              <span className="ml-2 text-blue-600">Uploading...</span>
                             )}
                           </p>
                         </div>
